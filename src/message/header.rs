@@ -184,6 +184,20 @@ impl ResponseCode {
     }
 }
 
+impl std::fmt::Display for ResponseCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::NoError => "No error condition",
+            Self::FormatError => "The name server was unable to interpret the query",
+            Self::ServerFailure => "The name server was unable to process this query due to a problem with the name server.",
+            Self::NameError => "Domain name referenced in the query does not exist",
+            Self::NotImplemented => "The name server does not support the requested kind of query",
+            Self::Refused => "The name server refuses to perform the specified operation for policy reasons.  For example, a name server may not wish to provide the information to the particular requester, or a name server may not wish to perform a particular operation"
+        };
+        s.fmt(f)
+    }
+}
+
 impl TryFrom<u8> for ResponseCode {
     type Error = anyhow::Error;
 

@@ -73,7 +73,7 @@ fn print_resp(resp: Vec<u8>, len: usize, sent_query_id: u16) -> AResult<()> {
     }
     match response_msg.header.rcode {
         ResponseCode::NoError => {}
-        other => anyhow::bail!("Error from resolver: {:?}", other),
+        err => anyhow::bail!("Error from resolver: {err}"),
     };
     println!("{response_msg:?}");
     Ok(())
