@@ -1,9 +1,10 @@
-use crate::message::{Message, MAX_UDP_BYTES};
+use crate::message::{header::ResponseCode, Message, MAX_UDP_BYTES};
 use anyhow::{anyhow, Result as AResult};
 use bitvec::prelude::*;
 use std::{fmt, net::UdpSocket, time::Duration};
 
 mod message;
+mod parse;
 
 // I asked some coworkers and they suggested this DNS resolver
 const REMOTE_RESOLVER: &str = "1.1.1.1:53";
@@ -18,7 +19,9 @@ fn main() {
     println!("Resolving {record_type} records for {domain_name}");
     let msg = Message::new_query(query_id, domain_name, record_type).unwrap();
     let (resp, len) = send_req(msg).unwrap();
-    print_resp(resp, len);
+    if let Err(e) = print_resp(resp, len, query_id) {
+        println!("Error: {e}");
+    }
 }
 
 fn send_req(msg: Message) -> AResult<(Vec<u8>, usize)> {
@@ -58,10 +61,25 @@ fn send_req(msg: Message) -> AResult<(Vec<u8>, usize)> {
     }
 }
 
-fn print_resp(resp: Vec<u8>, len: usize) {
-    println!("received {} bytes {:?}", len, &resp[..len]);
+fn print_resp(resp: Vec<u8>, len: usize, sent_query_id: u16) -> AResult<()> {
+    println!("received {len} bytes");
+    let (_remaining_input, response_msg) = match Message::deserialize_bytes(&resp[..len]) {
+        Ok(msg) => msg,
+        Err(e) => anyhow::bail!("Error parsing response: {e}"),
+    };
+    let received_query_id = response_msg.header.id;
+    if sent_query_id != received_query_id {
+        println!("Mismatch between query IDs. Client sent {sent_query_id} and received {received_query_id}")
+    }
+    match response_msg.header.rcode {
+        ResponseCode::NoError => {}
+        other => anyhow::bail!("Error from resolver: {:?}", other),
+    };
+    println!("{response_msg:?}");
+    Ok(())
 }
 
+#[derive(Debug)]
 enum RecordType {
     A,
     // TODO: Add more record types
@@ -85,6 +103,7 @@ impl RecordType {
     }
 }
 
+#[derive(Debug)]
 enum Class {
     IN,
 }

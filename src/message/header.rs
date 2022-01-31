@@ -1,11 +1,17 @@
 use bitvec::prelude::*;
+use nom::IResult;
+
+use crate::parse::{take_bit, take_le1_byte, take_le2_bytes, take_nibble, BitInput};
 
 /// Headers should always be 6 bytes long.
 const EXPECTED_SIZE_BYTES: usize = 2 * 6;
 
+/// All DNS messages start with a Header (both queries and responses!)
+/// Structure is defined at <https://datatracker.ietf.org/doc/html/rfc1035#section-4.1.1>
+#[derive(Debug)]
 pub struct Header {
     /// A 16 bit identifier assigned by the program that generates any kind of query.  This identifier is copied the corresponding reply and can be used by the requester to match up replies to outstanding queries.
-    id: u16,
+    pub id: u16,
     /// A one bit field that specifies whether this message is a query (0), or a response (1).
     qr: bool,
     /// A four bit field that specifies kind of query in this message.  This value is set by the originator of a query and copied into the response.
@@ -18,7 +24,7 @@ pub struct Header {
     rd: bool,
     /// Recursion Available - this be is set or cleared in a response, and denotes whether recursive query support is available in the name server.
     ra: bool,
-    rcode: ResponseCode,
+    pub rcode: ResponseCode,
     /// Number of entries in the question section.
     qdcount: u16,
     /// Number of resource records in the answer section.
@@ -70,9 +76,43 @@ impl Header {
         let bits_written = bv.len() - initial_length_bits;
         assert_eq!(bits_written, 8 * EXPECTED_SIZE_BYTES);
     }
+
+    pub fn deserialize(i: BitInput) -> IResult<BitInput, Self> {
+        use nom::combinator::map_res;
+
+        let (i, id) = take_le2_bytes(i, 16)?;
+        let (i, qr) = take_bit(i)?;
+        let (i, opcode) = map_res(take_nibble, Opcode::try_from)(i)?;
+        let (i, aa) = take_bit(i)?;
+        let (i, tc) = take_bit(i)?;
+        let (i, rd) = take_bit(i)?;
+        let (i, ra) = take_bit(i)?;
+        let (i, z) = take_le1_byte(i, 3)?;
+        assert_eq!(z, 0);
+        let (i, rcode) = map_res(take_nibble, ResponseCode::try_from)(i)?;
+        let (i, qdcount) = take_le2_bytes(i, 16)?;
+        let (i, ancount) = take_le2_bytes(i, 16)?;
+        let (i, nscount) = take_le2_bytes(i, 16)?;
+        let (i, arcount) = take_le2_bytes(i, 16)?;
+        let header = Header {
+            id,
+            qr,
+            opcode,
+            aa,
+            tc,
+            rd,
+            ra,
+            rcode,
+            qdcount,
+            ancount,
+            nscount,
+            arcount,
+        };
+        Ok((i, header))
+    }
 }
 
-#[allow(dead_code)] // I only support regular queries for now.
+#[derive(Debug)]
 enum Opcode {
     // 0: a standard query (QUERY)
     Query,
@@ -80,6 +120,20 @@ enum Opcode {
     IQuery,
     // 2: a server status request (STATUS)
     Status,
+}
+
+impl TryFrom<u8> for Opcode {
+    type Error = anyhow::Error;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        let op = match value {
+            0 => Self::Query,
+            1 => Self::IQuery,
+            2 => Self::Status,
+            other => anyhow::bail!("Unknown opcode {other}"),
+        };
+        Ok(op)
+    }
 }
 
 impl Opcode {
@@ -92,8 +146,8 @@ impl Opcode {
     }
 }
 
-#[allow(dead_code)] // Haven't yet implemented responses
-enum ResponseCode {
+#[derive(Debug)]
+pub enum ResponseCode {
     NoError,
     /// The name server was unable to interpret the query
     FormatError,
@@ -120,13 +174,30 @@ enum ResponseCode {
 impl ResponseCode {
     fn serialize<T: BitStore>(&self, bv: &mut BitVec<T, Msb0>) {
         match self {
-            ResponseCode::NoError => bv.extend_from_bitslice(bits![u8, Msb0; 0; 4]),
-            ResponseCode::FormatError => bv.extend_from_bitslice(bits![u8, Msb0; 0, 0, 0, 1]),
-            ResponseCode::ServerFailure => bv.extend_from_bitslice(bits![u8, Msb0; 0, 0, 1, 0]),
-            ResponseCode::NameError => bv.extend_from_bitslice(bits![u8, Msb0; 0, 0, 1, 1]),
-            ResponseCode::NotImplemented => bv.extend_from_bitslice(bits![u8, Msb0; 0, 1, 0, 0]),
-            ResponseCode::Refused => bv.extend_from_bitslice(bits![u8, Msb0; 0, 1, 0, 1]),
+            Self::NoError => bv.extend_from_bitslice(bits![u8, Msb0; 0; 4]),
+            Self::FormatError => bv.extend_from_bitslice(bits![u8, Msb0; 0, 0, 0, 1]),
+            Self::ServerFailure => bv.extend_from_bitslice(bits![u8, Msb0; 0, 0, 1, 0]),
+            Self::NameError => bv.extend_from_bitslice(bits![u8, Msb0; 0, 0, 1, 1]),
+            Self::NotImplemented => bv.extend_from_bitslice(bits![u8, Msb0; 0, 1, 0, 0]),
+            Self::Refused => bv.extend_from_bitslice(bits![u8, Msb0; 0, 1, 0, 1]),
         };
+    }
+}
+
+impl TryFrom<u8> for ResponseCode {
+    type Error = anyhow::Error;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        let op = match value {
+            0 => Self::NoError,
+            1 => Self::FormatError,
+            2 => Self::ServerFailure,
+            3 => Self::NameError,
+            4 => Self::NotImplemented,
+            5 => Self::Refused,
+            other => anyhow::bail!("Unknown response code {other}"),
+        };
+        Ok(op)
     }
 }
 

@@ -1,13 +1,14 @@
-mod header;
+pub mod header;
 mod question;
 
 use std::io::Read;
 
-use crate::RecordType;
+use crate::{parse::BitInput, RecordType};
 use anyhow::Result as AResult;
 use ascii::AsciiString;
 use bitvec::prelude::*;
 use header::Header;
+use nom::IResult;
 
 use self::question::Entry;
 
@@ -23,13 +24,14 @@ const MAX_LABEL_BYTES: usize = 63;
 /// names           255 octets or less
 const MAX_NAME_BYTES: usize = 255;
 
+#[derive(Debug)]
 #[allow(dead_code)] // Haven't yet implemented responses
 pub struct Message {
     /// The header section is always present.  The header includes fields that
     /// specify which of the remaining sections are present, and also specify
     /// whether the message is a query or a response, a standard query or some
     /// other opcode, etc.
-    header: Header,
+    pub header: Header,
     // The question section contains fields that describe a
     // question to a name server.  These fields are a query type (QTYPE), a
     // query class (QCLASS), and a query domain name (QNAME).
@@ -94,5 +96,26 @@ impl Message {
         let mut msg_bytes = Vec::with_capacity(MAX_UDP_BYTES);
         bv.as_bitslice().read_to_end(&mut msg_bytes).unwrap();
         Ok(msg_bytes)
+    }
+
+    /// Parse a DNS message from a sequence of bytes
+    pub fn deserialize_bytes(i: &[u8]) -> IResult<&[u8], Self> {
+        // Convert the byte-offset input into a bit-offset input, then parse that.
+        nom::bits::bits(Self::deserialize_bits)(i)
+    }
+
+    /// Parse a DNS message from a sequence of bits
+    fn deserialize_bits(i: BitInput) -> IResult<BitInput, Self> {
+        let (i, header) = Header::deserialize(i)?;
+        Ok((
+            i,
+            Self {
+                header,
+                question: Vec::new(),
+                answer: (),
+                authority: (),
+                additional: (),
+            },
+        ))
     }
 }

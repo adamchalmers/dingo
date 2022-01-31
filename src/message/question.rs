@@ -5,6 +5,7 @@ use bitvec::prelude::*;
 
 const LABEL_TOO_LONG: &str = "is too long (must be <64 chars)";
 
+#[derive(Debug)]
 pub struct Entry {
     labels: Vec<AsciiString>,
     record_type: RecordType,
