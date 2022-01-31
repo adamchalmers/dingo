@@ -61,7 +61,7 @@ impl Header {
         bv.push(self.ra);
         // the Z field, reserved for future use.
         // Must be zero in all queries and responses.
-        bv.extend_from_bitslice(&bits![0; 3]);
+        bv.extend_from_bitslice(bits![0; 3]);
         self.rcode.serialize(bv);
         bv.extend(self.qdcount.view_bits::<Msb0>());
         bv.extend(self.ancount.view_bits::<Msb0>());

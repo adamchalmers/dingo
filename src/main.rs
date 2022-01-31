@@ -1,24 +1,21 @@
-use crate::message::Message;
+use crate::message::{Message, MAX_UDP_BYTES};
 use anyhow::Result as AResult;
 use bitvec::prelude::*;
-use std::{net::UdpSocket, time::Duration};
+use std::{fmt, net::UdpSocket, time::Duration};
 
 mod message;
 
+// I asked some coworkers and they suggested this DNS resolver
 const REMOTE_RESOLVER: &str = "1.1.1.1:53";
 
-// /// From the RFC: "Various objects and parameters in the DNS have size limits.""
-// /// labels          63 octets or less
-// const MAX_LABEL_BYTES: usize = 63;
-// /// names           255 octets or less
-// const MAX_NAME_BYTES: usize = 255;
-// /// TTL             positive values of a signed 32 bit number.
-// const MAX_TTL: isize = isize::MAX;
+/// TTL             positive values of a signed 32 bit number.
+const _MAX_TTL: isize = isize::MAX;
 
 fn main() {
     let domain_name = "blog.adamchalmers.com".to_owned();
     let record_type = RecordType::A;
     let query_id = 33;
+    println!("Resolving {record_type} records for {domain_name}");
     let msg = Message::new_query(query_id, domain_name, record_type).unwrap();
     let resp = send_req(msg).unwrap();
     println!("{:?}", resp);
@@ -49,8 +46,12 @@ fn send_req(msg: Message) -> AResult<Vec<u8>> {
     let bytes_sent = socket.send(&body).expect("couldn't send data");
     println!("Sent {bytes_sent} bytes");
 
-    // Get the resolver's response
-    let mut response_buf = vec![0; 1024];
+    // Get the resolver's response.
+    // Note, you have to actually allocate space to write into.
+    // I was originally using an empty vector, but reading into an empty vector always
+    // instantly succeeds (by writing nothing), so I was discarding the response.
+    // See <https://users.rust-lang.org/t/empty-response-from-udp-recv-w-tokio-and-futures/20241/2>
+    let mut response_buf = vec![0; MAX_UDP_BYTES];
     match socket.recv(&mut response_buf) {
         Ok(received) => println!(
             "received {} bytes {:?}",
@@ -65,6 +66,15 @@ fn send_req(msg: Message) -> AResult<Vec<u8>> {
 enum RecordType {
     A,
     // TODO: Add more record types
+}
+
+impl fmt::Display for RecordType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::A => "A",
+        };
+        s.fmt(f)
+    }
 }
 
 impl RecordType {

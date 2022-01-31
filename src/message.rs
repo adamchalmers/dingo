@@ -13,7 +13,15 @@ use self::question::Entry;
 
 /// Defined by the spec
 /// UDP messages    512 octets or less
-const MAX_UDP_BYTES: usize = 512;
+pub(crate) const MAX_UDP_BYTES: usize = 512;
+
+/// Defined by the spec
+/// labels          63 octets or less
+const MAX_LABEL_BYTES: usize = 63;
+
+/// Defined by the spec
+/// names           255 octets or less
+const MAX_NAME_BYTES: usize = 255;
 
 #[allow(dead_code)] // Haven't yet implemented responses
 pub struct Message {
@@ -46,11 +54,22 @@ impl Message {
         domain_name: String,
         record_type: RecordType,
     ) -> AResult<Self> {
+        let name_len = domain_name.len();
+        if name_len > MAX_NAME_BYTES {
+            anyhow::bail!(
+                "Domain name is {name_len} bytes, which is over the max of {MAX_NAME_BYTES}"
+            );
+        }
         let dn = AsciiString::from_ascii(domain_name)?;
         let labels: Vec<_> = dn
             .split(ascii::AsciiChar::Dot)
             .map(|a| a.to_owned())
             .collect();
+        if labels.iter().any(|label| label.len() > MAX_LABEL_BYTES) {
+            anyhow::bail!(
+                "One of the labels in your domain is over the max of {MAX_LABEL_BYTES} bytes"
+            );
+        }
         let msg = Message {
             header: Header::new_query(id),
             question: vec![Entry::new(labels, record_type)],
