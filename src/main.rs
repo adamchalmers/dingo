@@ -1,5 +1,5 @@
 use crate::message::{Message, MAX_UDP_BYTES};
-use anyhow::Result as AResult;
+use anyhow::{anyhow, Result as AResult};
 use bitvec::prelude::*;
 use std::{fmt, net::UdpSocket, time::Duration};
 
@@ -17,11 +17,11 @@ fn main() {
     let query_id = 33;
     println!("Resolving {record_type} records for {domain_name}");
     let msg = Message::new_query(query_id, domain_name, record_type).unwrap();
-    let resp = send_req(msg).unwrap();
-    println!("{:?}", resp);
+    let (resp, len) = send_req(msg).unwrap();
+    print_resp(resp, len);
 }
 
-fn send_req(msg: Message) -> AResult<Vec<u8>> {
+fn send_req(msg: Message) -> AResult<(Vec<u8>, usize)> {
     use std::net::SocketAddr;
 
     // Connect to the DNS resolver
@@ -53,14 +53,13 @@ fn send_req(msg: Message) -> AResult<Vec<u8>> {
     // See <https://users.rust-lang.org/t/empty-response-from-udp-recv-w-tokio-and-futures/20241/2>
     let mut response_buf = vec![0; MAX_UDP_BYTES];
     match socket.recv(&mut response_buf) {
-        Ok(received) => println!(
-            "received {} bytes {:?}",
-            received,
-            &response_buf[..received]
-        ),
-        Err(e) => println!("recv function failed: {:?}", e),
+        Ok(received) => Ok((response_buf, received)),
+        Err(e) => Err(anyhow!("recv function failed: {:?}", e)),
     }
-    Ok(response_buf)
+}
+
+fn print_resp(resp: Vec<u8>, len: usize) {
+    println!("received {} bytes {:?}", len, &resp[..len]);
 }
 
 enum RecordType {
