@@ -46,8 +46,6 @@ impl Entry {
                 .map(|ch| ch.as_byte())
                 .for_each(|byte| bv.extend_from_bitslice(byte.view_bits::<Msb0>()));
         }
-        // The domain name terminates with the zero length octet for the null label of the root.
-        bv.extend_from_bitslice(0u8.view_bits::<Msb0>());
         Ok(())
     }
 }
@@ -64,6 +62,7 @@ mod tests {
             labels: vec![
                 AsciiString::from_ascii("adamchalmers").unwrap(),
                 AsciiString::from_ascii("com").unwrap(),
+                AsciiString::from_ascii("").unwrap(),
             ],
             record_type: RecordType::A,
             record_qclass: Class::IN,

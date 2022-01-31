@@ -13,7 +13,7 @@ const REMOTE_RESOLVER: &str = "1.1.1.1:53";
 const _MAX_TTL: isize = isize::MAX;
 
 fn main() {
-    let domain_name = "blog.adamchalmers.com".to_owned();
+    let domain_name = "blog.adamchalmers.com.".to_owned();
     let record_type = RecordType::A;
     let query_id = 33;
     println!("Resolving {record_type} records for {domain_name}");

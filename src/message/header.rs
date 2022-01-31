@@ -44,7 +44,7 @@ impl Header {
             opcode: Opcode::Query,
             aa: Default::default(),
             tc: false,
-            rd: false,
+            rd: true,
             ra: Default::default(),
             rcode: ResponseCode::NoError, // This doesn't matter for a query
             // In a query, there will be 1 question and no records.
