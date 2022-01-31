@@ -1,7 +1,11 @@
-use crate::{Class, RecordType};
+use crate::{parse::BitInput, Class, RecordType};
 use anyhow::{anyhow, Result as AResult};
 use ascii::AsciiString;
 use bitvec::prelude::*;
+use nom::{
+    multi::{length_value, many0},
+    IResult,
+};
 
 const LABEL_TOO_LONG: &str = "is too long (must be <64 chars)";
 
@@ -47,6 +51,19 @@ impl Entry {
                 .for_each(|byte| bv.extend_from_bitslice(byte.view_bits::<Msb0>()));
         }
         Ok(())
+    }
+
+    pub fn deserialize(i: BitInput) -> IResult<BitInput, Self> {
+        let parse_label = todo!();
+        let labels = many0(parse_label)(i)?;
+        Ok((
+            i,
+            Self {
+                labels,
+                record_type,
+                record_qclass,
+            },
+        ))
     }
 }
 

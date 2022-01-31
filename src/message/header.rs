@@ -26,13 +26,13 @@ pub struct Header {
     ra: bool,
     pub rcode: ResponseCode,
     /// Number of entries in the question section.
-    qdcount: u16,
+    pub qdcount: u16,
     /// Number of resource records in the answer section.
-    ancount: u16,
+    pub ancount: u16,
     /// Number of name server resource records in the authority records section.
-    nscount: u16,
+    pub nscount: u16,
     /// Number of resource records in the additional records section.
-    arcount: u16,
+    pub arcount: u16,
 }
 
 impl Header {

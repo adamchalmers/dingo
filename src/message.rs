@@ -1,5 +1,6 @@
 pub mod header;
 mod question;
+pub mod record;
 
 use std::io::Read;
 
@@ -8,7 +9,7 @@ use anyhow::Result as AResult;
 use ascii::AsciiString;
 use bitvec::prelude::*;
 use header::Header;
-use nom::IResult;
+use nom::{multi::count, IResult};
 
 use self::question::Entry;
 
@@ -40,14 +41,14 @@ pub struct Message {
     // sections have the same format: a possibly empty list of concatenated
     // resource records (RRs).
     /// The answer section contains RRs that answer the question
-    answer: (),
+    answer: Vec<record::Record>,
     /// the authority section contains RRs that point toward an
     /// authoritative name server;
-    authority: (),
+    authority: Vec<record::Record>,
     /// the additional records section contains RRs
     /// which relate to the query, but are not strictly answers for the
     /// question.
-    additional: (),
+    additional: Vec<record::Record>,
 }
 
 impl Message {
@@ -75,9 +76,9 @@ impl Message {
         let msg = Message {
             header: Header::new_query(id),
             question: vec![Entry::new(labels, record_type)],
-            answer: (),
-            authority: (),
-            additional: (),
+            answer: Vec::new(),
+            authority: Vec::new(),
+            additional: Vec::new(),
         };
         Ok(msg)
     }
@@ -107,14 +108,18 @@ impl Message {
     /// Parse a DNS message from a sequence of bits
     fn deserialize_bits(i: BitInput) -> IResult<BitInput, Self> {
         let (i, header) = Header::deserialize(i)?;
+        let (i, question) = count(question::Entry::deserialize, header.qdcount.into())(i)?;
+        let (i, answer) = count(record::Record::deserialize, header.ancount.into())(i)?;
+        let (i, authority) = count(record::Record::deserialize, header.nscount.into())(i)?;
+        let (i, additional) = count(record::Record::deserialize, header.arcount.into())(i)?;
         Ok((
             i,
             Self {
                 header,
-                question: Vec::new(),
-                answer: (),
-                authority: (),
-                additional: (),
+                question,
+                answer,
+                authority: Vec::new(),
+                additional: Vec::new(),
             },
         ))
     }
