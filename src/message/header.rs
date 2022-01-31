@@ -147,6 +147,7 @@ impl Opcode {
 }
 
 #[derive(Debug)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
 pub enum ResponseCode {
     NoError,
     /// The name server was unable to interpret the query
@@ -222,12 +223,28 @@ mod tests {
     use std::io::Read;
 
     #[test]
-    fn test_header_for_query() {
+    fn test_serialize_header_for_query() {
         let test_id = 33;
         let h = Header::new_query(test_id);
         let mut bv = BitVec::<u8, Msb0>::new();
         h.serialize(&mut bv);
         let mut buf = [0; EXPECTED_SIZE_BYTES];
         bv.as_bitslice().read_exact(&mut buf).unwrap();
+    }
+
+    #[test]
+    fn test_deserialize() {
+        // This is a real response from a DNS resolver (1.1.1.1)
+        let i = vec![
+            0, 33, 128, 130, 0, 1, 0, 0, 0, 0, 0, 0, 4, 98, 108, 111, 103, 12, 97, 100, 97, 109,
+            99, 104, 97, 108, 109, 101, 114, 115, 3, 99, 111, 109, 0, 0, 1, 0, 1,
+        ];
+
+        pub fn deser(i: &[u8]) -> IResult<&[u8], Header> {
+            nom::bits::bits(Header::deserialize)(i)
+        }
+        let (_i, h): (&[u8], Header) = deser(&i).unwrap();
+        assert_eq!(h.id, 33);
+        assert_eq!(h.rcode, ResponseCode::ServerFailure);
     }
 }
