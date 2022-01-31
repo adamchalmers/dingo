@@ -1,7 +1,7 @@
 use crate::message::Message;
 use anyhow::Result as AResult;
 use bitvec::prelude::*;
-use std::net::UdpSocket;
+use std::{net::UdpSocket, time::Duration};
 
 mod message;
 
@@ -25,16 +25,41 @@ fn main() {
 }
 
 fn send_req(msg: Message) -> AResult<Vec<u8>> {
-    let socket = UdpSocket::bind("127.0.0.1:34254").expect("couldn't bind to address");
+    use std::net::SocketAddr;
+
+    // Connect to the DNS resolver
+    let local_addr = "0.0.0.0:0";
+    let socket = UdpSocket::bind(local_addr).expect("couldn't bind to a local address");
+    socket.set_read_timeout(Some(Duration::from_secs(5)))?;
+    println!(
+        "Bound to :{}",
+        match socket.local_addr()? {
+            SocketAddr::V4(s4) => s4.port(),
+            SocketAddr::V6(s6) => s6.port(),
+        }
+    );
     socket
-        .send_to(&msg.serialize_bytes()?, REMOTE_RESOLVER)
-        .expect("couldn't send data");
-    let mut buf = Vec::new();
-    match socket.recv(&mut buf) {
-        Ok(received) => println!("received {} bytes {:?}", received, &buf[..received]),
+        .connect(REMOTE_RESOLVER)
+        .expect("couldn't connect to the DNS resolver");
+    println!("Connected to {REMOTE_RESOLVER}");
+
+    // Send the DNS resolver the message
+    let body = msg.serialize_bytes()?;
+    println!("Sending {} bytes", body.len());
+    let bytes_sent = socket.send(&body).expect("couldn't send data");
+    println!("Sent {bytes_sent} bytes");
+
+    // Get the resolver's response
+    let mut response_buf = vec![0; 1024];
+    match socket.recv(&mut response_buf) {
+        Ok(received) => println!(
+            "received {} bytes {:?}",
+            received,
+            &response_buf[..received]
+        ),
         Err(e) => println!("recv function failed: {:?}", e),
     }
-    Ok(buf)
+    Ok(response_buf)
 }
 
 enum RecordType {
