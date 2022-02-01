@@ -36,19 +36,19 @@ pub struct Message {
     // The question section contains fields that describe a
     // question to a name server.  These fields are a query type (QTYPE), a
     // query class (QCLASS), and a query domain name (QNAME).
-    question: Vec<question::Entry>,
+    pub question: Vec<question::Entry>,
     // The last three
     // sections have the same format: a possibly empty list of concatenated
     // resource records (RRs).
     /// The answer section contains RRs that answer the question
-    answer: Vec<record::Record>,
+    pub answer: Vec<record::Record>,
     /// the authority section contains RRs that point toward an
     /// authoritative name server;
-    authority: Vec<record::Record>,
+    pub authority: Vec<record::Record>,
     /// the additional records section contains RRs
     /// which relate to the query, but are not strictly answers for the
     /// question.
-    additional: Vec<record::Record>,
+    pub additional: Vec<record::Record>,
 }
 
 impl Message {
@@ -118,8 +118,8 @@ impl Message {
                 header,
                 question,
                 answer,
-                authority: Vec::new(),
-                additional: Vec::new(),
+                authority,
+                additional,
             },
         ))
     }

@@ -5,12 +5,10 @@ use std::{fmt, net::UdpSocket, time::Duration};
 
 mod message;
 mod parse;
+mod util;
 
 // I asked some coworkers and they suggested this DNS resolver
 const REMOTE_RESOLVER: &str = "1.1.1.1:53";
-
-/// TTL             positive values of a signed 32 bit number.
-const _MAX_TTL: isize = isize::MAX;
 
 fn main() {
     let domain_name = "blog.adamchalmers.com.".to_owned();
@@ -75,7 +73,32 @@ fn print_resp(resp: Vec<u8>, len: usize, sent_query_id: u16) -> AResult<()> {
         ResponseCode::NoError => {}
         err => anyhow::bail!("Error from resolver: {err}"),
     };
-    println!("{response_msg:?}");
+    println!("Header\n{:?}", response_msg.header);
+    if response_msg.question.len() > 1 {
+        for (i, question) in response_msg.question.iter().enumerate() {
+            println!("Question {i}:\n{question}");
+        }
+    } else {
+        println!("{}", response_msg.question[0]);
+    }
+    if !response_msg.answer.is_empty() {
+        println!("Answers:");
+        for record in response_msg.answer {
+            println!("{:?}", record);
+        }
+    }
+    if !response_msg.authority.is_empty() {
+        println!("Authority records:");
+        for record in response_msg.authority {
+            println!("{:?}", record);
+        }
+    }
+    if !response_msg.additional.is_empty() {
+        println!("Additional records:");
+        for record in response_msg.additional {
+            println!("{:?}", record);
+        }
+    }
     Ok(())
 }
 
@@ -103,9 +126,30 @@ impl RecordType {
     }
 }
 
+impl TryFrom<u16> for RecordType {
+    type Error = anyhow::Error;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        let record_type = match value {
+            1 => Self::A,
+            other => anyhow::bail!("Invalid record type number {other}"),
+        };
+        Ok(record_type)
+    }
+}
+
 #[derive(Debug)]
 enum Class {
     IN,
+}
+
+impl fmt::Display for Class {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::IN => "IN",
+        };
+        s.fmt(f)
+    }
 }
 
 impl Class {
@@ -114,5 +158,17 @@ impl Class {
             Self::IN => 1,
         };
         bv.extend_from_bitslice(type_num.view_bits::<Msb0>())
+    }
+}
+
+impl TryFrom<u16> for Class {
+    type Error = anyhow::Error;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        let record_type = match value {
+            1 => Self::IN,
+            other => anyhow::bail!("Invalid class number {other}"),
+        };
+        Ok(record_type)
     }
 }

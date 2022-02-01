@@ -1,11 +1,13 @@
-use crate::{parse::BitInput, Class, RecordType};
+use crate::{
+    parse::{parse_domain, take_le2_bytes, BitInput},
+    util::join_asciis,
+    Class, RecordType,
+};
 use anyhow::{anyhow, Result as AResult};
 use ascii::AsciiString;
 use bitvec::prelude::*;
-use nom::{
-    multi::{length_value, many0},
-    IResult,
-};
+use nom::{combinator::map_res, IResult};
+use std::fmt;
 
 const LABEL_TOO_LONG: &str = "is too long (must be <64 chars)";
 
@@ -14,6 +16,13 @@ pub struct Entry {
     labels: Vec<AsciiString>,
     record_type: RecordType,
     record_qclass: Class,
+}
+
+impl fmt::Display for Entry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = format!("{}: {}", self.record_type, join_asciis(&self.labels));
+        s.fmt(f)
+    }
 }
 
 impl Entry {
@@ -54,8 +63,9 @@ impl Entry {
     }
 
     pub fn deserialize(i: BitInput) -> IResult<BitInput, Self> {
-        let parse_label = todo!();
-        let labels = many0(parse_label)(i)?;
+        let (i, labels) = parse_domain(i)?;
+        let (i, record_type) = map_res(|i| take_le2_bytes(i, 16), RecordType::try_from)(i)?;
+        let (i, record_qclass) = map_res(|i| take_le2_bytes(i, 16), Class::try_from)(i)?;
         Ok((
             i,
             Self {
