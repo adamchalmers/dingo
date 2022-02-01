@@ -1,8 +1,11 @@
-use crate::message::{header::ResponseCode, Message, MAX_UDP_BYTES};
+use crate::{
+    dns_types::{Class, RecordType},
+    message::{header::ResponseCode, Message, MAX_UDP_BYTES},
+};
 use anyhow::{anyhow, Result as AResult};
-use bitvec::prelude::*;
-use std::{fmt, net::UdpSocket, time::Duration};
+use std::{net::UdpSocket, time::Duration};
 
+mod dns_types;
 mod message;
 mod parse;
 mod util;
@@ -61,6 +64,8 @@ fn send_req(msg: Message) -> AResult<(Vec<u8>, usize)> {
 
 fn print_resp(resp: Vec<u8>, len: usize, sent_query_id: u16) -> AResult<()> {
     println!("received {len} bytes");
+
+    // Parse and validate the response.
     let (_remaining_input, response_msg) = match Message::deserialize_bytes(&resp[..len]) {
         Ok(msg) => msg,
         Err(e) => anyhow::bail!("Error parsing response: {e}"),
@@ -73,7 +78,8 @@ fn print_resp(resp: Vec<u8>, len: usize, sent_query_id: u16) -> AResult<()> {
         ResponseCode::NoError => {}
         err => anyhow::bail!("Error from resolver: {err}"),
     };
-    println!("Header\n{:?}", response_msg.header);
+
+    // Reprint the question, why not?
     if response_msg.question.len() > 1 {
         for (i, question) in response_msg.question.iter().enumerate() {
             println!("Question {i}:\n{question}");
@@ -81,6 +87,8 @@ fn print_resp(resp: Vec<u8>, len: usize, sent_query_id: u16) -> AResult<()> {
     } else {
         println!("{}", response_msg.question[0]);
     }
+
+    // Print records sent by the resolver.
     if !response_msg.answer.is_empty() {
         println!("Answers:");
         for record in response_msg.answer {
@@ -100,75 +108,4 @@ fn print_resp(resp: Vec<u8>, len: usize, sent_query_id: u16) -> AResult<()> {
         }
     }
     Ok(())
-}
-
-#[derive(Debug)]
-enum RecordType {
-    A,
-    // TODO: Add more record types
-}
-
-impl fmt::Display for RecordType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            Self::A => "A",
-        };
-        s.fmt(f)
-    }
-}
-
-impl RecordType {
-    fn serialize<T: BitStore>(&self, bv: &mut BitVec<T, Msb0>) {
-        let type_num: u16 = match self {
-            Self::A => 1,
-        };
-        bv.extend_from_bitslice(type_num.view_bits::<Msb0>())
-    }
-}
-
-impl TryFrom<u16> for RecordType {
-    type Error = anyhow::Error;
-
-    fn try_from(value: u16) -> Result<Self, Self::Error> {
-        let record_type = match value {
-            1 => Self::A,
-            other => anyhow::bail!("Invalid record type number {other}"),
-        };
-        Ok(record_type)
-    }
-}
-
-#[derive(Debug)]
-enum Class {
-    IN,
-}
-
-impl fmt::Display for Class {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            Self::IN => "IN",
-        };
-        s.fmt(f)
-    }
-}
-
-impl Class {
-    fn serialize<T: BitStore>(&self, bv: &mut BitVec<T, Msb0>) {
-        let type_num: u16 = match self {
-            Self::IN => 1,
-        };
-        bv.extend_from_bitslice(type_num.view_bits::<Msb0>())
-    }
-}
-
-impl TryFrom<u16> for Class {
-    type Error = anyhow::Error;
-
-    fn try_from(value: u16) -> Result<Self, Self::Error> {
-        let record_type = match value {
-            1 => Self::IN,
-            other => anyhow::bail!("Invalid class number {other}"),
-        };
-        Ok(record_type)
-    }
 }
