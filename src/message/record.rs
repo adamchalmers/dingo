@@ -35,7 +35,10 @@ impl Record {
     pub fn deserialize(i: BitInput) -> IResult<BitInput, Self> {
         println!("Getting record");
         let (i, name) = map(parse_domain, |strs| join_asciis(&strs))(i)?;
-        let (i, record_type) = map_res(|i| take_le2_bytes(i, 16), RecordType::try_from)(i)?;
+        let (i, record_type) = map_res(take(16u8), |n: u16| match dbg!(RecordType::try_from(n)) {
+            Ok(rt) => Ok(rt),
+            Err(e) => Err(e),
+        })(i)?;
         let (i, class) = map_res(|i| take_le2_bytes(i, 16), Class::try_from)(i)?;
         let (i, ttl) = map_res(take(32usize), |ttl| {
             if (ttl as isize) > MAX_TTL {

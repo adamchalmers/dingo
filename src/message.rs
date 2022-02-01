@@ -124,3 +124,20 @@ impl Message {
         ))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_msg() {
+        let response_msg = vec![
+            0, 33, 129, 128, 0, 1, 0, 2, 0, 0, 0, 0, 4, 98, 108, 111, 103, 12, 97, 100, 97, 109,
+            99, 104, 97, 108, 109, 101, 114, 115, 3, 99, 111, 109, 0, 0, 1, 0, 1, 192, 12, 0, 1, 0,
+            1, 0, 0, 0, 179, 0, 4, 104, 19, 237, 120, 192, 12, 0, 1, 0, 1, 0, 0, 0, 179, 0, 4, 104,
+            19, 238, 120,
+        ];
+        let (unused, msg) = Message::deserialize_bytes(&response_msg).unwrap();
+        println!("{unused:?}, {msg:?}");
+    }
+}

@@ -31,7 +31,7 @@ impl TryFrom<u16> for RecordType {
     fn try_from(value: u16) -> Result<Self, Self::Error> {
         let record_type = match value {
             1 => Self::A,
-            other => anyhow::bail!("Invalid record type number {other}"),
+            other => anyhow::bail!("Invalid record type number {other:b}"),
         };
         Ok(record_type)
     }
