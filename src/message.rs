@@ -1,10 +1,11 @@
 pub mod header;
+mod parse_header;
 mod question;
 pub mod record;
 
 use std::io::Read;
 
-use crate::{parse::BitInput, RecordType};
+use crate::RecordType;
 use anyhow::Result as AResult;
 use ascii::AsciiString;
 use bitvec::prelude::*;
@@ -100,15 +101,10 @@ impl Message {
 
     /// Parse a DNS message from a sequence of bytes
     pub fn deserialize_bytes(i: &[u8]) -> IResult<&[u8], Self> {
-        // Convert the byte-offset input into a bit-offset input, then parse that.
-        nom::bits::bits(Self::deserialize_bits)(i)
-    }
-
-    /// Parse a DNS message from a sequence of bits
-    fn deserialize_bits(i: BitInput) -> IResult<BitInput, Self> {
-        let (i, header) = Header::deserialize(i)?;
+        let (i, header) = nom::bits::bits(Header::deserialize)(i)?;
         dbg!(&header);
         let (i, question) = count(question::Entry::deserialize, header.qdcount.into())(i)?;
+        dbg!(&question);
         let (i, answer) = count(record::Record::deserialize, header.ancount.into())(i)?;
         let (i, authority) = count(record::Record::deserialize, header.nscount.into())(i)?;
         let (i, additional) = count(record::Record::deserialize, header.arcount.into())(i)?;

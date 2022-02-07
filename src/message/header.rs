@@ -1,7 +1,6 @@
+use crate::message::parse_header::*;
 use bitvec::prelude::*;
 use nom::IResult;
-
-use crate::parse::{take_bit, take_le1_byte, take_le2_bytes, take_nibble, BitInput};
 
 /// Headers should always be 6 bytes long.
 const EXPECTED_SIZE_BYTES: usize = 2 * 6;

@@ -1,13 +1,9 @@
 use std::{fmt, net::Ipv4Addr};
 
-use crate::{
-    parse::{parse_domain, take_le2_bytes, BitInput},
-    util::join_asciis,
-    Class, RecordType,
-};
+use crate::{parse::parse_domain, util::join_asciis, Class, RecordType};
 use nom::{
-    bits::complete::take,
     combinator::{map, map_res},
+    number::complete::{be_u16, be_u32, be_u8},
     IResult,
 };
 
@@ -32,16 +28,13 @@ impl fmt::Display for Record {
 }
 
 impl Record {
-    pub fn deserialize(i: BitInput) -> IResult<BitInput, Self> {
+    pub fn deserialize(i: &[u8]) -> IResult<&[u8], Self> {
         println!("Getting record: {i:?}");
         let (i, name) = map(parse_domain, |strs| join_asciis(&strs))(i)?;
         dbg!(&name);
-        let (i, record_type) = map_res(take(16u8), |n: u16| match dbg!(RecordType::try_from(n)) {
-            Ok(rt) => Ok(rt),
-            Err(e) => Err(e),
-        })(i)?;
-        let (i, class) = map_res(|i| take_le2_bytes(i, 16), Class::try_from)(i)?;
-        let (i, ttl) = map_res(take(32usize), |ttl| {
+        let (i, record_type) = map_res(be_u16, RecordType::try_from)(i)?;
+        let (i, class) = map_res(be_u16, Class::try_from)(i)?;
+        let (i, ttl) = map_res(be_u32, |ttl| {
             if (ttl as isize) > MAX_TTL {
                 Err(format!("TTL {ttl} is too large"))
             } else {
@@ -50,7 +43,7 @@ impl Record {
         })(i)?;
         let mut parse_data = match (&record_type, &class) {
             (RecordType::A, Class::IN) => map(
-                nom::sequence::tuple((take(8usize), take(8usize), take(8usize), take(8usize))),
+                nom::sequence::tuple((be_u8, be_u8, be_u8, be_u8)),
                 |(a, b, c, d)| RecordData::A(Ipv4Addr::new(a, b, c, d)),
             ),
         };
