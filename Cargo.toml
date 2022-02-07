@@ -11,3 +11,7 @@ ascii = "1.0.0"
 bitvec = "1.0.0"
 nom = "7.1.0"
 pico-args = "0.4.2"
+
+[dev-dependencies]
+bytes = "1.1.0"
+dns-message-parser = "0.6.0"

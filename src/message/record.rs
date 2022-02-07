@@ -33,8 +33,9 @@ impl fmt::Display for Record {
 
 impl Record {
     pub fn deserialize(i: BitInput) -> IResult<BitInput, Self> {
-        println!("Getting record");
+        println!("Getting record: {i:?}");
         let (i, name) = map(parse_domain, |strs| join_asciis(&strs))(i)?;
+        dbg!(&name);
         let (i, record_type) = map_res(take(16u8), |n: u16| match dbg!(RecordType::try_from(n)) {
             Ok(rt) => Ok(rt),
             Err(e) => Err(e),

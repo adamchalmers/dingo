@@ -26,7 +26,6 @@ const MAX_LABEL_BYTES: usize = 63;
 const MAX_NAME_BYTES: usize = 255;
 
 #[derive(Debug)]
-#[allow(dead_code)] // Haven't yet implemented responses
 pub struct Message {
     /// The header section is always present.  The header includes fields that
     /// specify which of the remaining sections are present, and also specify
@@ -108,6 +107,7 @@ impl Message {
     /// Parse a DNS message from a sequence of bits
     fn deserialize_bits(i: BitInput) -> IResult<BitInput, Self> {
         let (i, header) = Header::deserialize(i)?;
+        dbg!(&header);
         let (i, question) = count(question::Entry::deserialize, header.qdcount.into())(i)?;
         let (i, answer) = count(record::Record::deserialize, header.ancount.into())(i)?;
         let (i, authority) = count(record::Record::deserialize, header.nscount.into())(i)?;
@@ -137,6 +137,13 @@ mod tests {
             1, 0, 0, 0, 179, 0, 4, 104, 19, 237, 120, 192, 12, 0, 1, 0, 1, 0, 0, 0, 179, 0, 4, 104,
             19, 238, 120,
         ];
+
+        // Expected, from a finished DNS parser
+        let bytes = bytes::Bytes::copy_from_slice(&response_msg[..]);
+        let dns = dns_message_parser::Dns::decode(bytes).unwrap();
+        println!("{:?}", dns);
+
+        // Compare it to my DNS parser
         let (unused, msg) = Message::deserialize_bytes(&response_msg).unwrap();
         println!("{unused:?}, {msg:?}");
     }
