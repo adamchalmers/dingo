@@ -38,6 +38,7 @@ impl TryFrom<u16> for RecordType {
 }
 
 #[derive(Debug)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
 pub enum Class {
     IN,
 }

@@ -3,6 +3,7 @@ use std::{fmt, net::Ipv4Addr};
 use crate::{parse::parse_domain, util::join_asciis, Class, RecordType};
 use nom::{
     combinator::{map, map_res},
+    multi::length_value,
     number::complete::{be_u16, be_u32, be_u8},
     IResult,
 };
@@ -10,11 +11,12 @@ use nom::{
 /// TTL             positive values of a signed 32 bit number.
 const MAX_TTL: isize = isize::MAX;
 #[derive(Debug)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct Record {
-    name: String,
-    class: Class,
-    ttl: u32,
-    data: RecordData,
+    pub name: String,
+    pub class: Class,
+    pub ttl: u32,
+    pub data: RecordData,
 }
 
 impl fmt::Display for Record {
@@ -31,7 +33,6 @@ impl Record {
     pub fn deserialize(i: &[u8]) -> IResult<&[u8], Self> {
         println!("Getting record: {i:?}");
         let (i, name) = map(parse_domain, |strs| join_asciis(&strs))(i)?;
-        dbg!(&name);
         let (i, record_type) = map_res(be_u16, RecordType::try_from)(i)?;
         let (i, class) = map_res(be_u16, Class::try_from)(i)?;
         let (i, ttl) = map_res(be_u32, |ttl| {
@@ -41,26 +42,27 @@ impl Record {
                 Ok(ttl)
             }
         })(i)?;
-        let mut parse_data = match (&record_type, &class) {
+        let parse_data = match (&record_type, &class) {
             (RecordType::A, Class::IN) => map(
                 nom::sequence::tuple((be_u8, be_u8, be_u8, be_u8)),
                 |(a, b, c, d)| RecordData::A(Ipv4Addr::new(a, b, c, d)),
             ),
         };
-        let (i, data) = parse_data(i)?;
+        let (i, data) = length_value(be_u16, parse_data)(i)?;
         Ok((
             i,
-            Record {
+            dbg!(Record {
                 name,
                 class,
                 ttl,
                 data,
-            },
+            }),
         ))
     }
 }
 
 #[derive(Debug)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
 pub enum RecordData {
     A(Ipv4Addr),
 }

@@ -3,7 +3,7 @@ use nom::{
     branch::alt,
     combinator::{map, map_res},
     multi::many1,
-    number,
+    number::complete::be_u16,
     sequence::pair,
     IResult,
 };
@@ -36,17 +36,12 @@ fn parse_pointer(i: &[u8]) -> IResult<&[u8], Vec<AsciiString>> {
     // The first two bits are ones.  This allows a pointer to be distinguished
     // from a label, since the label must begin with two zero bits because
     // labels are restricted to 63 octets or less.
-    let (i, offset) = map_res(number::complete::be_u8, |ptr| {
-        if ptr <= 192 {
-            dbg!(Err(format!("{ptr} is not a valid pointer.")))
-        } else {
-            Ok(ptr - 192)
-        }
-    })(i)?;
+    const POINTER_HEADER: u16 = 0b1100000000000000;
+    let (i, pointer_offset) = map(be_u16, |ptr| ptr - POINTER_HEADER)(i)?;
     // TODO: Actually parse the name
     use std::str::FromStr;
-    let name = AsciiString::from_str(&format!("name at {offset}")).unwrap();
-    Ok((i, vec![name]))
+    let name = AsciiString::from_str(&format!("name at {pointer_offset}")).unwrap();
+    Ok((i, vec![dbg!(name)]))
 }
 
 /// Matches a sequence of labels, terminated by a zero-length label.

@@ -100,11 +100,9 @@ impl Message {
     }
 
     /// Parse a DNS message from a sequence of bytes
-    pub fn deserialize_bytes(i: &[u8]) -> IResult<&[u8], Self> {
+    pub fn deserialize(i: &[u8]) -> IResult<&[u8], Self> {
         let (i, header) = nom::bits::bits(Header::deserialize)(i)?;
-        dbg!(&header);
         let (i, question) = count(question::Entry::deserialize, header.qdcount.into())(i)?;
-        dbg!(&question);
         let (i, answer) = count(record::Record::deserialize, header.ancount.into())(i)?;
         let (i, authority) = count(record::Record::deserialize, header.nscount.into())(i)?;
         let (i, additional) = count(record::Record::deserialize, header.arcount.into())(i)?;
@@ -123,24 +121,54 @@ impl Message {
 
 #[cfg(test)]
 mod tests {
+    use std::net::Ipv4Addr;
+
+    use crate::{
+        dns_types::Class,
+        message::record::{Record, RecordData},
+    };
+
     use super::*;
 
     #[test]
     fn test_parse_msg() {
         let response_msg = vec![
-            0, 33, 129, 128, 0, 1, 0, 2, 0, 0, 0, 0, 4, 98, 108, 111, 103, 12, 97, 100, 97, 109,
-            99, 104, 97, 108, 109, 101, 114, 115, 3, 99, 111, 109, 0, 0, 1, 0, 1, 192, 12, 0, 1, 0,
-            1, 0, 0, 0, 179, 0, 4, 104, 19, 237, 120, 192, 12, 0, 1, 0, 1, 0, 0, 0, 179, 0, 4, 104,
-            19, 238, 120,
+            0, 33, 129, 128, 0, 1, 0, 2, 0, 0, 0, 0, // Header (12 bytes)
+            4, 98, 108, 111, 103, // blog
+            12, 97, 100, 97, 109, 99, 104, 97, 108, 109, 101, 114, 115, // adamchalmers
+            3, 99, 111, 109, // com
+            0,   // .
+            0, 1, 0, 1, // class, type
+            192, 12, // Answer #1: name, which is a pointer to byte 12.
+            0, 1, 0, 1, // class, type
+            0, 0, 0, 179, // TTL (u32)
+            0, 4, // rdata length
+            104, 19, 237, 120, // rdata, an IPv4
+            192, 12, // Answer #1: name, which is a pointer to byte 12.
+            0, 1, 0, 1, // class, type
+            0, 0, 0, 179, // TTL (u32)
+            0, 4, // rdata length
+            104, 19, 238, 120, // IPv4
         ];
 
-        // Expected, from a finished DNS parser
-        let bytes = bytes::Bytes::copy_from_slice(&response_msg[..]);
-        let dns = dns_message_parser::Dns::decode(bytes).unwrap();
-        println!("{:?}", dns);
-
         // Compare it to my DNS parser
-        let (unused, msg) = Message::deserialize_bytes(&response_msg).unwrap();
-        println!("{unused:?}, {msg:?}");
+        let r = Message::deserialize(&response_msg);
+        let (_, actual_msg) = r.unwrap();
+        let expected_answers = vec![
+            Record {
+                name: String::from("blog.adamchalmers.com."),
+                class: Class::IN,
+                ttl: 179,
+                data: RecordData::A(Ipv4Addr::new(104, 19, 237, 120)),
+            },
+            Record {
+                name: String::from("blog.adamchalmers.com."),
+                class: Class::IN,
+                ttl: 179,
+                data: RecordData::A(Ipv4Addr::new(104, 19, 238, 120)),
+            },
+        ];
+        let actual_answers = actual_msg.answer;
+        assert_eq!(actual_answers, expected_answers)
     }
 }

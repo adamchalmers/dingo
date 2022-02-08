@@ -45,9 +45,10 @@ impl Entry {
             // The mapping of domain names to labels is defined in RFC 1035:
             // 2.3.1. Preferred name syntax
             let len = label.len();
-            let len = u8::try_from(len).map_err(|_| anyhow!("Label {label} {LABEL_TOO_LONG}"))?;
+            let fmt = format!("Label {label} {LABEL_TOO_LONG}");
+            let len = u8::try_from(len).map_err(|_| anyhow!("{fmt}"))?;
             if len >= 64 {
-                anyhow::bail!("Label {label} {LABEL_TOO_LONG}")
+                anyhow::bail!("{fmt}")
             }
             bv.extend_from_bitslice(len.view_bits::<Msb0>());
             label
