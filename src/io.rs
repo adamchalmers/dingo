@@ -6,23 +6,15 @@ use std::{net::UdpSocket, time::Duration};
 const REMOTE_RESOLVER: &str = "1.1.1.1:53";
 
 pub fn send_req(msg: Message) -> AResult<(Vec<u8>, usize)> {
-    use std::net::SocketAddr;
-
     // Connect to the DNS resolver
     let local_addr = "0.0.0.0:0";
     let socket = UdpSocket::bind(local_addr).expect("couldn't bind to a local address");
     socket.set_read_timeout(Some(Duration::from_secs(5)))?;
-    println!(
-        "Bound to :{}",
-        match socket.local_addr()? {
-            SocketAddr::V4(s4) => s4.port(),
-            SocketAddr::V6(s6) => s6.port(),
-        }
-    );
+    println!("Bound to local {}", socket.local_addr()?);
     socket
         .connect(REMOTE_RESOLVER)
         .expect("couldn't connect to the DNS resolver");
-    println!("Connected to {REMOTE_RESOLVER}");
+    println!("Connected to remote {REMOTE_RESOLVER}");
 
     // Send the DNS resolver the message
     let body = msg.serialize_bytes()?;
@@ -62,8 +54,9 @@ pub fn print_resp(resp: Vec<u8>, len: usize, sent_query_id: u16) -> AResult<()> 
     };
 
     // Reprint the question, why not?
-    for (i, question) in response_msg.question.iter().enumerate() {
-        println!("Question {i}:\n{question}");
+    println!("Questions:");
+    for question in response_msg.question.iter() {
+        println!("{question}");
     }
 
     // Print records sent by the resolver.

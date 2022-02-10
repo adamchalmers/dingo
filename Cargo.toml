@@ -11,6 +11,7 @@ ascii = "1.0.0"
 bitvec = "1.0.0"
 nom = "7.1.0"
 pico-args = "0.4.2"
+rand = "0.8.4"
 
 [dev-dependencies]
 # bytes = "1.1.0"

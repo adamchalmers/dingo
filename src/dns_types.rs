@@ -1,10 +1,22 @@
 use bitvec::prelude::*;
-use std::fmt;
+use std::{fmt, str::FromStr};
 
 #[derive(Debug)]
 pub enum RecordType {
     A,
     // TODO: Add more record types
+}
+
+impl FromStr for RecordType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let rt = match s {
+            "A" => Self::A,
+            other => return Err(format!("{other} is not a valid DNS record type")),
+        };
+        Ok(rt)
+    }
 }
 
 impl fmt::Display for RecordType {
