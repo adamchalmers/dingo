@@ -1,13 +1,16 @@
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+
 use crate::dns_types::RecordType;
 
 const HELP: &str = "\
 dingo -- domain information gatherer, obviously
 USAGE:
-  dingo --record-type TYPE NAME
+  dingo [OPTIONS] --record-type TYPE NAME
 FLAGS:
-  -h, --help                    Prints help information
+  -h, --help                Prints help information
 OPTIONS:
-  -t, --record-type TYPE       Choose the DNS record type (A, CNAME, AAAA etc)
+  -t, --record-type TYPE    Choose the DNS record type (A, CNAME, AAAA etc)
+  --resolver IP             Which DNS resolver to query (defaults to 1.1.1.1)
 ARGS:
   NAME A domain name to look up. Remember, these must be ASCII.
 ";
@@ -17,6 +20,7 @@ ARGS:
 pub struct AppArgs {
     pub record_type: RecordType,
     pub name: String,
+    pub resolver: SocketAddr,
 }
 
 impl AppArgs {
@@ -36,14 +40,27 @@ impl AppArgs {
             Some(rt) => rt,
             None => {
                 eprintln!("You must supply exactly one of either -t or --record-type");
+                print!("{}", HELP);
                 std::process::exit(1);
             }
         };
+
+        // I asked some coworkers and they suggested this DNS resolver
+        let default_resolver = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(1, 1, 1, 1), 53));
+        let resolver = pargs
+            .opt_value_from_str("--resolver")?
+            .unwrap_or(default_resolver);
+
         let mut name: String = pargs.free_from_str()?;
         if !name.ends_with('.') {
             name.push('.');
         }
-        let args = AppArgs { record_type, name };
+
+        let args = AppArgs {
+            record_type,
+            name,
+            resolver,
+        };
 
         let remaining = pargs.finish();
         if !remaining.is_empty() {

@@ -172,6 +172,7 @@ impl RecordParser {
                 input = i;
                 break;
             } else {
+                // This label is a literal.
                 let (i, label) = parse_label(input)?;
                 input = i;
                 name += &label;

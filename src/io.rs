@@ -1,20 +1,20 @@
 use crate::message::{header::ResponseCode, Message, MAX_UDP_BYTES};
 use anyhow::{anyhow, Result as AResult};
-use std::{net::UdpSocket, time::Duration};
+use std::{
+    net::{SocketAddr, UdpSocket},
+    time::Duration,
+};
 
-// I asked some coworkers and they suggested this DNS resolver
-const REMOTE_RESOLVER: &str = "1.1.1.1:53";
-
-pub fn send_req(msg: Message) -> AResult<(Vec<u8>, usize)> {
+pub fn send_req(msg: Message, resolver: SocketAddr) -> AResult<(Vec<u8>, usize)> {
     // Connect to the DNS resolver
     let local_addr = "0.0.0.0:0";
     let socket = UdpSocket::bind(local_addr).expect("couldn't bind to a local address");
     socket.set_read_timeout(Some(Duration::from_secs(5)))?;
     println!("Bound to local {}", socket.local_addr()?);
     socket
-        .connect(REMOTE_RESOLVER)
+        .connect(resolver)
         .expect("couldn't connect to the DNS resolver");
-    println!("Connected to remote {REMOTE_RESOLVER}");
+    println!("Connected to remote {resolver}");
 
     // Send the DNS resolver the message
     let body = msg.serialize_bytes()?;
