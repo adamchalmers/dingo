@@ -26,9 +26,11 @@ pub fn send_req(msg: Message) -> AResult<(Vec<u8>, usize)> {
 
     // Send the DNS resolver the message
     let body = msg.serialize_bytes()?;
-    println!("Sending {} bytes", body.len());
+    println!("Request size: {} bytes", body.len());
     let bytes_sent = socket.send(&body).expect("couldn't send data");
-    println!("Sent {bytes_sent} bytes");
+    if bytes_sent != body.len() {
+        panic!("Only {bytes_sent} bytes, message was probably truncated");
+    }
 
     // Get the resolver's response.
     // Note, you have to actually allocate space to write into.
@@ -43,7 +45,7 @@ pub fn send_req(msg: Message) -> AResult<(Vec<u8>, usize)> {
 }
 
 pub fn print_resp(resp: Vec<u8>, len: usize, sent_query_id: u16) -> AResult<()> {
-    println!("received {len} bytes");
+    println!("Response size: {len} bytes");
 
     // Parse and validate the response.
     let (_remaining_input, response_msg) = match Message::deserialize(&resp[..len]) {
@@ -60,31 +62,27 @@ pub fn print_resp(resp: Vec<u8>, len: usize, sent_query_id: u16) -> AResult<()> 
     };
 
     // Reprint the question, why not?
-    if response_msg.question.len() > 1 {
-        for (i, question) in response_msg.question.iter().enumerate() {
-            println!("Question {i}:\n{question}");
-        }
-    } else {
-        println!("{}", response_msg.question[0]);
+    for (i, question) in response_msg.question.iter().enumerate() {
+        println!("Question {i}:\n{question}");
     }
 
     // Print records sent by the resolver.
     if !response_msg.answer.is_empty() {
         println!("Answers:");
         for record in response_msg.answer {
-            println!("{:?}", record);
+            println!("{}", record.as_dns_response());
         }
     }
     if !response_msg.authority.is_empty() {
         println!("Authority records:");
         for record in response_msg.authority {
-            println!("{:?}", record);
+            println!("{}", record.as_dns_response());
         }
     }
     if !response_msg.additional.is_empty() {
         println!("Additional records:");
         for record in response_msg.additional {
-            println!("{:?}", record);
+            println!("{}", record.as_dns_response());
         }
     }
     Ok(())

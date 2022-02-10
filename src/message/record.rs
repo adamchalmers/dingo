@@ -1,4 +1,4 @@
-use std::{fmt, net::Ipv4Addr};
+use std::net::Ipv4Addr;
 
 use crate::{Class, RecordType};
 use ascii::AsciiString;
@@ -12,13 +12,15 @@ pub struct Record {
     pub data: RecordData,
 }
 
-impl fmt::Display for Record {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = format!(
-            "{} ({}) => {} (TTL {})",
-            self.name, self.class, self.data, self.ttl
-        );
-        s.fmt(f)
+impl Record {
+    pub fn as_dns_response(&self) -> String {
+        let (rtype, rdata) = match self.data {
+            RecordData::A(ipv4) => ("A", ipv4.to_string()),
+        };
+        format!(
+            "({}, {rtype}) for {} => {rdata} (TTL {})",
+            self.class, self.name, self.ttl
+        )
     }
 }
 
@@ -26,15 +28,6 @@ impl fmt::Display for Record {
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub enum RecordData {
     A(Ipv4Addr),
-}
-
-impl fmt::Display for RecordData {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            Self::A(ipv4) => format!("{ipv4}"),
-        };
-        s.fmt(f)
-    }
 }
 
 impl From<RecordData> for RecordType {
