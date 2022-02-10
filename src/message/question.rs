@@ -3,7 +3,7 @@ use anyhow::{anyhow, Result as AResult};
 use ascii::AsciiString;
 use bitvec::prelude::*;
 use nom::{combinator::map_res, number::complete::be_u16, IResult};
-use std::fmt;
+use std::{collections::HashMap, fmt};
 
 const LABEL_TOO_LONG: &str = "is too long (must be <64 chars)";
 
@@ -72,6 +72,31 @@ impl Entry {
             },
         ))
     }
+
+    /// Return all labels (except the terminal empty label), and the
+    /// offsets within this Question section at which they are found.
+    pub fn offsets(&self) -> HashMap<usize, AsciiString> {
+        let mut hm = HashMap::default();
+        let mut curr_record_offset = 0;
+        let n = self.labels.len();
+        for i in 0..n - 1 {
+            let label = self.labels[i].to_owned();
+            let label_to_end: Vec<_> = self
+                .labels
+                .iter()
+                .skip(i)
+                .take(n - i - 1)
+                .map(|s| s.to_owned())
+                .collect();
+            let label_joined = join_asciis(&label_to_end);
+            hm.insert(
+                curr_record_offset,
+                AsciiString::from_ascii(label_joined).unwrap(),
+            );
+            curr_record_offset += label.len() + 1;
+        }
+        hm
+    }
 }
 
 #[cfg(test)]
@@ -101,5 +126,24 @@ mod tests {
         + 2; // QTYPE is 16 bits
         let actual_bytes_read = bv.as_bitslice().read_to_end(&mut buf).unwrap();
         assert_eq!(expected_bytes_read, actual_bytes_read);
+    }
+
+    #[test]
+    fn test_offsets() {
+        let entry = Entry {
+            labels: vec![
+                AsciiString::from_ascii("adamchalmers").unwrap(),
+                AsciiString::from_ascii("com").unwrap(),
+                AsciiString::from_ascii("").unwrap(),
+            ],
+            record_type: RecordType::A,
+            record_qclass: Class::IN,
+        };
+        let expected = HashMap::from([
+            (0, AsciiString::from_ascii("adamchalmers.com").unwrap()),
+            (13, AsciiString::from_ascii("com").unwrap()),
+        ]);
+        let actual = entry.offsets();
+        assert_eq!(actual, expected);
     }
 }

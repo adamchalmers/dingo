@@ -3,16 +3,18 @@ mod parse_header;
 mod question;
 pub mod record;
 
-use std::{collections::HashMap, io::Read};
-
-use crate::RecordType;
+use crate::{
+    message::{question::Entry, record::Record},
+    RecordType,
+};
 use anyhow::Result as AResult;
 use ascii::AsciiString;
 use bitvec::prelude::*;
 use header::Header;
-use nom::{multi::count, IResult};
+use nom::{combinator::consumed, error::Error, multi::count, IResult};
+use std::{collections::HashMap, io::Read};
 
-use self::question::Entry;
+const LENGTH_OF_HEADER_SECTION: usize = 12;
 
 /// Defined by the spec
 /// UDP messages    512 octets or less
@@ -41,14 +43,14 @@ pub struct Message {
     // sections have the same format: a possibly empty list of concatenated
     // resource records (RRs).
     /// The answer section contains RRs that answer the question
-    pub answer: Vec<record::Record>,
+    pub answer: Vec<Record>,
     /// the authority section contains RRs that point toward an
     /// authoritative name server;
-    pub authority: Vec<record::Record>,
+    pub authority: Vec<Record>,
     /// the additional records section contains RRs
     /// which relate to the query, but are not strictly answers for the
     /// question.
-    pub additional: Vec<record::Record>,
+    pub additional: Vec<Record>,
 }
 
 impl Message {
@@ -100,23 +102,42 @@ impl Message {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct MessageParser {
     domains: HashMap<usize, AsciiString>,
 }
 
-impl<'i> nom::Parser<&'i [u8], Message, nom::error::Error<&'i [u8]>> for MessageParser {
+impl<'i> nom::Parser<&'i [u8], Message, Error<&'i [u8]>> for MessageParser {
     fn parse(&mut self, i: &'i [u8]) -> IResult<&'i [u8], Message> {
         let (i, header) = nom::bits::bits(Header::deserialize)(i)?;
-        let (i, question) = count(question::Entry::deserialize, header.qdcount.into())(i)?;
-        let (i, answer) = count(record::Record::deserialize, header.ancount.into())(i)?;
-        let (i, authority) = count(record::Record::deserialize, header.nscount.into())(i)?;
-        let (i, additional) = count(record::Record::deserialize, header.arcount.into())(i)?;
+
+        // Parse the right number of question sections, and keep a reference back to
+        // the bytes that were parsed for each one.
+        let (i, question) = count(
+            consumed(question::Entry::deserialize),
+            header.qdcount.into(),
+        )(i)?;
+
+        // Add the domains parsed from the question as possible future domains that could be pointed to,
+        // for DNS message compression.
+        // See RFC 1035 part 4.1.4 for more about message compression.
+        let mut q_section_offset = LENGTH_OF_HEADER_SECTION;
+        for (consumed, q) in &question {
+            let labels_from_question = q
+                .offsets()
+                .into_iter()
+                .map(|(offset, label)| (offset + q_section_offset, label));
+            self.domains.extend(labels_from_question);
+            q_section_offset += consumed.len();
+        }
+        let (i, answer) = count(Record::deserialize, header.ancount.into())(i)?;
+        let (i, authority) = count(Record::deserialize, header.nscount.into())(i)?;
+        let (i, additional) = count(Record::deserialize, header.arcount.into())(i)?;
         Ok((
             i,
             Message {
                 header,
-                question,
+                question: question.into_iter().map(|(_, q)| q).collect(),
                 answer,
                 authority,
                 additional,
@@ -159,7 +180,8 @@ mod tests {
 
         // Compare it to my DNS parser
         use nom::Parser;
-        let r = MessageParser::default().parse(&response_msg);
+        let mut mp = MessageParser::default();
+        let r = mp.parse(&response_msg);
         let (_, actual_msg) = r.unwrap();
         let expected_answers = vec![
             Record {
@@ -176,6 +198,7 @@ mod tests {
             },
         ];
         let actual_answers = actual_msg.answer;
+        dbg!(mp);
         assert_eq!(actual_answers, expected_answers)
     }
 }

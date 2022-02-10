@@ -31,7 +31,6 @@ impl fmt::Display for Record {
 
 impl Record {
     pub fn deserialize(i: &[u8]) -> IResult<&[u8], Self> {
-        println!("Getting record: {i:?}");
         let (i, name) = map(parse_domain, |strs| join_asciis(&strs))(i)?;
         let (i, record_type) = map_res(be_u16, RecordType::try_from)(i)?;
         let (i, class) = map_res(be_u16, Class::try_from)(i)?;
@@ -51,12 +50,12 @@ impl Record {
         let (i, data) = length_value(be_u16, parse_data)(i)?;
         Ok((
             i,
-            dbg!(Record {
+            Record {
                 name,
                 class,
                 ttl,
                 data,
-            }),
+            },
         ))
     }
 }
