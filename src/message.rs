@@ -4,15 +4,25 @@ mod question;
 pub mod record;
 
 use crate::{
+    dns_types::Class,
     message::{question::Entry, record::Record},
+    parse::parse_label,
     RecordType,
 };
 use anyhow::Result as AResult;
 use ascii::AsciiString;
 use bitvec::prelude::*;
 use header::Header;
-use nom::{combinator::consumed, error::Error, multi::count, IResult};
-use std::{collections::HashMap, io::Read};
+use nom::{
+    combinator::{consumed, map, map_res, peek},
+    error::Error,
+    multi::{count, length_value},
+    number::complete::{be_u16, be_u32, be_u8},
+    IResult,
+};
+use std::{collections::HashMap, io::Read, net::Ipv4Addr};
+
+use self::record::RecordData;
 
 const LENGTH_OF_HEADER_SECTION: usize = 12;
 
@@ -100,15 +110,8 @@ impl Message {
         bv.as_bitslice().read_to_end(&mut msg_bytes).unwrap();
         Ok(msg_bytes)
     }
-}
 
-#[derive(Default, Debug)]
-pub struct MessageParser {
-    domains: HashMap<usize, AsciiString>,
-}
-
-impl<'i> nom::Parser<&'i [u8], Message, Error<&'i [u8]>> for MessageParser {
-    fn parse(&mut self, i: &'i [u8]) -> IResult<&'i [u8], Message> {
+    pub fn deserialize(i: &[u8]) -> IResult<&[u8], Self> {
         let (i, header) = nom::bits::bits(Header::deserialize)(i)?;
 
         // Parse the right number of question sections, and keep a reference back to
@@ -122,17 +125,20 @@ impl<'i> nom::Parser<&'i [u8], Message, Error<&'i [u8]>> for MessageParser {
         // for DNS message compression.
         // See RFC 1035 part 4.1.4 for more about message compression.
         let mut q_section_offset = LENGTH_OF_HEADER_SECTION;
+        let mut domains = HashMap::new();
         for (consumed, q) in &question {
             let labels_from_question = q
                 .offsets()
                 .into_iter()
                 .map(|(offset, label)| (offset + q_section_offset, label));
-            self.domains.extend(labels_from_question);
+            domains.extend(labels_from_question);
             q_section_offset += consumed.len();
         }
-        let (i, answer) = count(Record::deserialize, header.ancount.into())(i)?;
-        let (i, authority) = count(Record::deserialize, header.nscount.into())(i)?;
-        let (i, additional) = count(Record::deserialize, header.arcount.into())(i)?;
+        let mut rp = RecordParser { domains };
+        use nom::Parser;
+        let (i, answer) = count(|i| rp.parse(i), header.ancount.into())(i)?;
+        let (i, authority) = count(|i| rp.parse(i), header.nscount.into())(i)?;
+        let (i, additional) = count(|i| rp.parse(i), header.arcount.into())(i)?;
         Ok((
             i,
             Message {
@@ -141,6 +147,72 @@ impl<'i> nom::Parser<&'i [u8], Message, Error<&'i [u8]>> for MessageParser {
                 answer,
                 authority,
                 additional,
+            },
+        ))
+    }
+}
+
+#[derive(Default, Debug)]
+pub struct RecordParser {
+    domains: HashMap<usize, AsciiString>,
+}
+
+impl RecordParser {
+    fn parse_name<'i>(&mut self, mut input: &'i [u8]) -> IResult<&'i [u8], AsciiString> {
+        let mut name = AsciiString::new();
+        loop {
+            let (i, first_byte) = peek(be_u8)(input)?;
+            input = i;
+            if first_byte >= 0b11000000 {
+                // This label is a pointer, and it ends the sequence of labels.
+                const POINTER_HEADER: u16 = 0b1100000000000000;
+                let (i, pointer_offset) =
+                    map(be_u16, |ptr| (ptr - POINTER_HEADER) as usize)(input)?;
+                name += &self.domains[&pointer_offset];
+                input = i;
+                break;
+            } else {
+                let (i, label) = parse_label(input)?;
+                input = i;
+                name += &label;
+                if label.is_empty() {
+                    break;
+                }
+            }
+        }
+        // TODO: update the domains list with the domains we got from parsing this name.
+        Ok((input, name))
+    }
+}
+
+impl<'i> nom::Parser<&'i [u8], Record, Error<&'i [u8]>> for RecordParser {
+    fn parse(&mut self, input: &'i [u8]) -> IResult<&'i [u8], Record, Error<&'i [u8]>> {
+        let (input, name) = self.parse_name(input)?;
+        let (input, record_type) = map_res(be_u16, RecordType::try_from)(input)?;
+        let (input, class) = map_res(be_u16, Class::try_from)(input)?;
+        // RFC defines the max TTL as "positive values of a signed 32 bit number."
+        let max_ttl: isize = i32::MAX.try_into().unwrap();
+        let (input, ttl) = map_res(be_u32, |ttl| {
+            if (ttl as isize) > max_ttl {
+                Err(format!("TTL {ttl} is too large"))
+            } else {
+                Ok(ttl)
+            }
+        })(input)?;
+        let parse_data = match (&record_type, &class) {
+            (RecordType::A, Class::IN) => map(
+                nom::sequence::tuple((be_u8, be_u8, be_u8, be_u8)),
+                |(a, b, c, d)| RecordData::A(Ipv4Addr::new(a, b, c, d)),
+            ),
+        };
+        let (i, data) = length_value(be_u16, parse_data)(input)?;
+        Ok((
+            i,
+            Record {
+                name,
+                class,
+                ttl,
+                data,
             },
         ))
     }
@@ -178,27 +250,27 @@ mod tests {
             104, 19, 238, 120, // IPv4
         ];
 
-        // Compare it to my DNS parser
-        use nom::Parser;
-        let mut mp = MessageParser::default();
-        let r = mp.parse(&response_msg);
+        // Try to parse it
+        let r = Message::deserialize(&response_msg);
         let (_, actual_msg) = r.unwrap();
+
+        // Was it correct?
+        let name = AsciiString::from_ascii("blog.adamchalmers.com.").unwrap();
         let expected_answers = vec![
             Record {
-                name: String::from("blog.adamchalmers.com."),
+                name: name.clone(),
                 class: Class::IN,
                 ttl: 179,
                 data: RecordData::A(Ipv4Addr::new(104, 19, 237, 120)),
             },
             Record {
-                name: String::from("blog.adamchalmers.com."),
+                name,
                 class: Class::IN,
                 ttl: 179,
                 data: RecordData::A(Ipv4Addr::new(104, 19, 238, 120)),
             },
         ];
         let actual_answers = actual_msg.answer;
-        dbg!(mp);
         assert_eq!(actual_answers, expected_answers)
     }
 }

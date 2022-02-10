@@ -1,4 +1,4 @@
-use crate::{parse::parse_domain, util::join_asciis, Class, RecordType};
+use crate::{parse::parse_labels_then_zero, util::join_asciis, Class, RecordType};
 use anyhow::{anyhow, Result as AResult};
 use ascii::AsciiString;
 use bitvec::prelude::*;
@@ -60,7 +60,7 @@ impl Entry {
     }
 
     pub fn deserialize(i: &[u8]) -> IResult<&[u8], Self> {
-        let (i, labels) = parse_domain(i)?;
+        let (i, labels) = parse_labels_then_zero(i)?;
         let (i, record_type) = map_res(be_u16, RecordType::try_from)(i)?;
         let (i, record_qclass) = map_res(be_u16, Class::try_from)(i)?;
         Ok((
@@ -81,13 +81,7 @@ impl Entry {
         let n = self.labels.len();
         for i in 0..n - 1 {
             let label = self.labels[i].to_owned();
-            let label_to_end: Vec<_> = self
-                .labels
-                .iter()
-                .skip(i)
-                .take(n - i - 1)
-                .map(|s| s.to_owned())
-                .collect();
+            let label_to_end: Vec<_> = self.labels.iter().skip(i).map(|s| s.to_owned()).collect();
             let label_joined = join_asciis(&label_to_end);
             hm.insert(
                 curr_record_offset,
@@ -140,8 +134,8 @@ mod tests {
             record_qclass: Class::IN,
         };
         let expected = HashMap::from([
-            (0, AsciiString::from_ascii("adamchalmers.com").unwrap()),
-            (13, AsciiString::from_ascii("com").unwrap()),
+            (0, AsciiString::from_ascii("adamchalmers.com.").unwrap()),
+            (13, AsciiString::from_ascii("com.").unwrap()),
         ]);
         let actual = entry.offsets();
         assert_eq!(actual, expected);

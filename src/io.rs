@@ -1,4 +1,4 @@
-use crate::message::{header::ResponseCode, Message, MessageParser, MAX_UDP_BYTES};
+use crate::message::{header::ResponseCode, Message, MAX_UDP_BYTES};
 use anyhow::{anyhow, Result as AResult};
 use std::{net::UdpSocket, time::Duration};
 
@@ -46,8 +46,7 @@ pub fn print_resp(resp: Vec<u8>, len: usize, sent_query_id: u16) -> AResult<()> 
     println!("received {len} bytes");
 
     // Parse and validate the response.
-    use nom::Parser;
-    let (_remaining_input, response_msg) = match MessageParser::default().parse(&resp[..len]) {
+    let (_remaining_input, response_msg) = match Message::deserialize(&resp[..len]) {
         Ok(msg) => msg,
         Err(e) => anyhow::bail!("Error parsing response: {e}"),
     };

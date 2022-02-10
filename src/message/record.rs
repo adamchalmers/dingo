@@ -1,19 +1,12 @@
 use std::{fmt, net::Ipv4Addr};
 
-use crate::{parse::parse_domain, util::join_asciis, Class, RecordType};
-use nom::{
-    combinator::{map, map_res},
-    multi::length_value,
-    number::complete::{be_u16, be_u32, be_u8},
-    IResult,
-};
+use crate::{Class, RecordType};
+use ascii::AsciiString;
 
-/// TTL             positive values of a signed 32 bit number.
-const MAX_TTL: isize = isize::MAX;
 #[derive(Debug)]
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct Record {
-    pub name: String,
+    pub name: AsciiString,
     pub class: Class,
     pub ttl: u32,
     pub data: RecordData,
@@ -26,37 +19,6 @@ impl fmt::Display for Record {
             self.name, self.class, self.data, self.ttl
         );
         s.fmt(f)
-    }
-}
-
-impl Record {
-    pub fn deserialize(i: &[u8]) -> IResult<&[u8], Self> {
-        let (i, name) = map(parse_domain, |strs| join_asciis(&strs))(i)?;
-        let (i, record_type) = map_res(be_u16, RecordType::try_from)(i)?;
-        let (i, class) = map_res(be_u16, Class::try_from)(i)?;
-        let (i, ttl) = map_res(be_u32, |ttl| {
-            if (ttl as isize) > MAX_TTL {
-                Err(format!("TTL {ttl} is too large"))
-            } else {
-                Ok(ttl)
-            }
-        })(i)?;
-        let parse_data = match (&record_type, &class) {
-            (RecordType::A, Class::IN) => map(
-                nom::sequence::tuple((be_u8, be_u8, be_u8, be_u8)),
-                |(a, b, c, d)| RecordData::A(Ipv4Addr::new(a, b, c, d)),
-            ),
-        };
-        let (i, data) = length_value(be_u16, parse_data)(i)?;
-        Ok((
-            i,
-            Record {
-                name,
-                class,
-                ttl,
-                data,
-            },
-        ))
     }
 }
 
