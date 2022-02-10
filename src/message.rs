@@ -3,7 +3,7 @@ mod parse_header;
 mod question;
 pub mod record;
 
-use std::io::Read;
+use std::{collections::HashMap, io::Read};
 
 use crate::RecordType;
 use anyhow::Result as AResult;
@@ -98,9 +98,15 @@ impl Message {
         bv.as_bitslice().read_to_end(&mut msg_bytes).unwrap();
         Ok(msg_bytes)
     }
+}
 
-    /// Parse a DNS message from a sequence of bytes
-    pub fn deserialize(i: &[u8]) -> IResult<&[u8], Self> {
+#[derive(Default)]
+pub struct MessageParser {
+    domains: HashMap<usize, AsciiString>,
+}
+
+impl<'i> nom::Parser<&'i [u8], Message, nom::error::Error<&'i [u8]>> for MessageParser {
+    fn parse(&mut self, i: &'i [u8]) -> IResult<&'i [u8], Message> {
         let (i, header) = nom::bits::bits(Header::deserialize)(i)?;
         let (i, question) = count(question::Entry::deserialize, header.qdcount.into())(i)?;
         let (i, answer) = count(record::Record::deserialize, header.ancount.into())(i)?;
@@ -108,7 +114,7 @@ impl Message {
         let (i, additional) = count(record::Record::deserialize, header.arcount.into())(i)?;
         Ok((
             i,
-            Self {
+            Message {
                 header,
                 question,
                 answer,
@@ -152,7 +158,8 @@ mod tests {
         ];
 
         // Compare it to my DNS parser
-        let r = Message::deserialize(&response_msg);
+        use nom::Parser;
+        let r = MessageParser::default().parse(&response_msg);
         let (_, actual_msg) = r.unwrap();
         let expected_answers = vec![
             Record {
