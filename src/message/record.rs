@@ -14,13 +14,11 @@ pub struct Record {
 
 impl Record {
     pub fn as_dns_response(&self) -> String {
-        let (rtype, rdata) = match self.data {
-            RecordData::A(ipv4) => ("A", ipv4.to_string()),
+        let rdata = match &self.data {
+            RecordData::A(ipv4) => ipv4.to_string(),
+            RecordData::Cname(name) => name.to_string(),
         };
-        format!(
-            "({}, {rtype}) for {} => {rdata} (TTL {})",
-            self.class, self.name, self.ttl
-        )
+        format!("{rdata} (TTL {})", self.ttl)
     }
 }
 
@@ -28,12 +26,15 @@ impl Record {
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub enum RecordData {
     A(Ipv4Addr),
+    Cname(AsciiString),
 }
 
-impl From<RecordData> for RecordType {
-    fn from(rd: RecordData) -> Self {
-        match rd {
-            RecordData::A(_) => Self::A,
+impl RecordData {
+    #[allow(dead_code)]
+    fn as_type(&self) -> RecordType {
+        match self {
+            Self::A(_) => RecordType::A,
+            Self::Cname(_) => RecordType::Cname,
         }
     }
 }

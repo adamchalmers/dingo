@@ -4,6 +4,7 @@ use std::{fmt, str::FromStr};
 #[derive(Debug)]
 pub enum RecordType {
     A,
+    Cname,
     // TODO: Add more record types
 }
 
@@ -13,6 +14,7 @@ impl FromStr for RecordType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let rt = match s {
             "A" => Self::A,
+            "CNAME" => Self::Cname,
             other => return Err(format!("{other} is not a valid DNS record type")),
         };
         Ok(rt)
@@ -23,6 +25,7 @@ impl fmt::Display for RecordType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
             Self::A => "A",
+            Self::Cname => "CNAME",
         };
         s.fmt(f)
     }
@@ -32,6 +35,7 @@ impl RecordType {
     pub fn serialize<T: BitStore>(&self, bv: &mut BitVec<T, Msb0>) {
         let type_num: u16 = match self {
             Self::A => 1,
+            Self::Cname => 5,
         };
         bv.extend_from_bitslice(type_num.view_bits::<Msb0>())
     }
@@ -43,6 +47,7 @@ impl TryFrom<u16> for RecordType {
     fn try_from(value: u16) -> Result<Self, Self::Error> {
         let record_type = match value {
             1 => Self::A,
+            5 => Self::Cname,
             other => anyhow::bail!("Invalid record type number {other:b}"),
         };
         Ok(record_type)

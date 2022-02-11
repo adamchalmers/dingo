@@ -18,6 +18,7 @@ use nom::{
     error::Error,
     multi::{count, length_value},
     number::complete::{be_u16, be_u32, be_u8},
+    sequence::tuple,
     IResult,
 };
 use std::{collections::HashMap, io::Read, net::Ipv4Addr};
@@ -158,6 +159,20 @@ pub struct RecordParser {
 }
 
 impl RecordParser {
+    fn parse_rdata<'i>(
+        &mut self,
+        record_type: RecordType,
+    ) -> impl FnMut(&'i [u8]) -> IResult<&'i [u8], RecordData> + '_ {
+        move |i| {
+            let record = match record_type {
+                RecordType::A => map(tuple((be_u8, be_u8, be_u8, be_u8)), |(a, b, c, d)| {
+                    RecordData::A(Ipv4Addr::new(a, b, c, d))
+                })(i)?,
+                RecordType::Cname => map(|i| self.parse_name(i), RecordData::Cname)(i)?,
+            };
+            Ok(record)
+        }
+    }
     fn parse_name<'i>(&mut self, mut input: &'i [u8]) -> IResult<&'i [u8], AsciiString> {
         let mut name = AsciiString::new();
         loop {
@@ -166,6 +181,7 @@ impl RecordParser {
             if first_byte >= 0b11000000 {
                 // This label is a pointer, and it ends the sequence of labels.
                 const POINTER_HEADER: u16 = 0b1100000000000000;
+                // The remaining 14 bits are the offset that the pointer points at.
                 let (i, pointer_offset) =
                     map(be_u16, |ptr| (ptr - POINTER_HEADER) as usize)(input)?;
                 name += &self.domains[&pointer_offset];
@@ -179,6 +195,7 @@ impl RecordParser {
                 if label.is_empty() {
                     break;
                 }
+                name.push(ascii::AsciiChar::Dot);
             }
         }
         // TODO: update the domains list with the domains we got from parsing this name.
@@ -200,13 +217,7 @@ impl<'i> nom::Parser<&'i [u8], Record, Error<&'i [u8]>> for RecordParser {
                 Ok(ttl)
             }
         })(input)?;
-        let parse_data = match (&record_type, &class) {
-            (RecordType::A, Class::IN) => map(
-                nom::sequence::tuple((be_u8, be_u8, be_u8, be_u8)),
-                |(a, b, c, d)| RecordData::A(Ipv4Addr::new(a, b, c, d)),
-            ),
-        };
-        let (i, data) = length_value(be_u16, parse_data)(input)?;
+        let (i, data) = length_value(be_u16, self.parse_rdata(record_type))(input)?;
         Ok((
             i,
             Record {
