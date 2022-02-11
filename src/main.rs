@@ -12,6 +12,8 @@ mod message;
 mod parse;
 mod util;
 
+const VERBOSE: bool = false;
+
 fn main() {
     let AppArgs {
         name,
@@ -20,8 +22,8 @@ fn main() {
     } = AppArgs::parse().unwrap();
     let query_id = rand::thread_rng().gen();
     let msg = Message::new_query(query_id, name, record_type).unwrap();
-    let (resp, len) = io::send_req(msg, resolver).unwrap();
-    if let Err(e) = io::print_resp(resp, len, query_id) {
+    let (resp, len) = io::send_req(msg, resolver, VERBOSE).unwrap();
+    if let Err(e) = io::print_resp(resp, len, query_id, VERBOSE) {
         println!("Error: {e}");
     }
 }
