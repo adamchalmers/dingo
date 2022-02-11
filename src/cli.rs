@@ -9,8 +9,8 @@ USAGE:
 FLAGS:
   -h, --help                Prints help information
 OPTIONS:
-  -t, --record-type TYPE    Choose the DNS record type (A, CNAME, AAAA etc)
-  --resolver IP             Which DNS resolver to query (defaults to 1.1.1.1)
+  -t, --record-type TYPE    Choose the DNS record type (currently only supports A, CNAME)
+  -r, --resolver IP         Which DNS resolver to query (default is 1.1.1.1:53)
 ARGS:
   NAME A domain name to look up. Remember, these must be ASCII.
 ";
@@ -49,6 +49,7 @@ impl AppArgs {
         let default_resolver = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(1, 1, 1, 1), 53));
         let resolver = pargs
             .opt_value_from_str("--resolver")?
+            .or(pargs.opt_value_from_str("-r")?)
             .unwrap_or(default_resolver);
 
         let mut name: String = pargs.free_from_str()?;
