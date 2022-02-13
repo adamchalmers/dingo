@@ -48,7 +48,8 @@ pub fn print_resp(resp: Vec<u8>, len: usize, sent_query_id: u16, verbose: bool) 
     }
 
     // Parse and validate the response.
-    let (_remaining_input, response_msg) = match Message::deserialize(&resp[..len]) {
+    let input = resp[..len].to_vec();
+    let response_msg = match Message::deserialize(input) {
         Ok(msg) => msg,
         Err(e) => anyhow::bail!("Error parsing response: {e}"),
     };

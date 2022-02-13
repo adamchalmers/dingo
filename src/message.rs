@@ -14,18 +14,16 @@ use ascii::AsciiString;
 use bitvec::prelude::*;
 use header::Header;
 use nom::{
-    combinator::{consumed, map, map_res, peek},
+    combinator::{map, map_res, peek},
     error::Error,
     multi::{count, length_value},
     number::complete::{be_u16, be_u32, be_u8},
     sequence::tuple,
-    IResult,
+    IResult, Parser,
 };
-use std::{collections::HashMap, io::Read, net::Ipv4Addr};
+use std::{io::Read, net::Ipv4Addr};
 
 use self::record::RecordData;
-
-const LENGTH_OF_HEADER_SECTION: usize = 12;
 
 /// Defined by the spec
 /// UDP messages    512 octets or less
@@ -112,55 +110,25 @@ impl Message {
         Ok(msg_bytes)
     }
 
-    pub fn deserialize(i: &[u8]) -> IResult<&[u8], Self> {
-        let (i, header) = nom::bits::bits(Header::deserialize)(i)?;
-
-        // Parse the right number of question sections, and keep a reference back to
-        // the bytes that were parsed for each one.
-        let (i, question) = count(
-            consumed(question::Entry::deserialize),
-            header.qdcount.into(),
-        )(i)?;
-
-        // Add the domains parsed from the question as possible future domains that could be pointed to,
-        // for DNS message compression.
-        // See RFC 1035 part 4.1.4 for more about message compression.
-        let mut q_section_offset = LENGTH_OF_HEADER_SECTION;
-        let mut domains = HashMap::new();
-        for (consumed, q) in &question {
-            let labels_from_question = q
-                .offsets()
-                .into_iter()
-                .map(|(offset, label)| (offset + q_section_offset, label));
-            domains.extend(labels_from_question);
-            q_section_offset += consumed.len();
-        }
-        let mut rp = RecordParser { domains };
-        use nom::Parser;
-        let (i, answer) = count(|i| rp.parse(i), header.ancount.into())(i)?;
-        let (i, authority) = count(|i| rp.parse(i), header.nscount.into())(i)?;
-        let (i, additional) = count(|i| rp.parse(i), header.arcount.into())(i)?;
-        Ok((
-            i,
-            Message {
-                header,
-                question: question.into_iter().map(|(_, q)| q).collect(),
-                answer,
-                authority,
-                additional,
-            },
-        ))
+    pub fn deserialize(input: Vec<u8>) -> anyhow::Result<Self> {
+        let mut mp = MsgParser {
+            input: input.clone(),
+        };
+        let slice = &input[..];
+        let msg: Message = mp.parse(slice).unwrap().1;
+        Ok(msg)
     }
 }
 
-#[derive(Default, Debug)]
-pub struct RecordParser {
-    domains: HashMap<usize, AsciiString>,
+#[derive(Clone)]
+struct MsgParser {
+    input: Vec<u8>,
 }
 
-impl RecordParser {
+impl MsgParser {
+    /// Returns a parser that can parse DNS record data of the given record type.
     fn parse_rdata<'i>(
-        &mut self,
+        &self,
         record_type: RecordType,
     ) -> impl FnMut(&'i [u8]) -> IResult<&'i [u8], RecordData> + '_ {
         move |i| {
@@ -173,18 +141,24 @@ impl RecordParser {
             Ok(record)
         }
     }
-    fn parse_name<'i>(&mut self, mut input: &'i [u8]) -> IResult<&'i [u8], AsciiString> {
+
+    /// Parse a domain name.
+    fn parse_name<'i>(&self, mut input: &'i [u8]) -> IResult<&'i [u8], AsciiString> {
         let mut name = AsciiString::new();
         loop {
             let (i, first_byte) = peek(be_u8)(input)?;
             input = i;
-            if first_byte >= 0b11000000 {
+            const POINTER_HEADER: u8 = 0b11000000;
+            if first_byte >= POINTER_HEADER {
                 // This label is a pointer, and it ends the sequence of labels.
-                const POINTER_HEADER: u16 = 0b1100000000000000;
                 // The remaining 14 bits are the offset that the pointer points at.
-                let (i, pointer_offset) =
-                    map(be_u16, |ptr| (ptr - POINTER_HEADER) as usize)(input)?;
-                name += &self.domains[&pointer_offset];
+                // So, first, examine the 14 bits to find the offset of the next label.
+                let dereference_pointer = |ptr| (ptr - ((POINTER_HEADER as u16) << 8)) as usize;
+                let (i, next_label_offset) = map(be_u16, dereference_pointer)(input)?;
+
+                // Now, just parse a name from that offset.
+                let (_, pointed_label) = self.parse_name(&self.input[next_label_offset..]).unwrap();
+                name += &pointed_label;
                 input = i;
                 break;
             } else {
@@ -192,6 +166,9 @@ impl RecordParser {
                 let (i, label) = parse_label(input)?;
                 input = i;
                 name += &label;
+                // Domain names end with a zero-length terminal label.
+                // (that's why in `dig` the names always end in an unnecessary dot,
+                // e.g. adamchalmers.com.)
                 if label.is_empty() {
                     break;
                 }
@@ -203,7 +180,34 @@ impl RecordParser {
     }
 }
 
-impl<'i> nom::Parser<&'i [u8], Record, Error<&'i [u8]>> for RecordParser {
+impl<'i> nom::Parser<&'i [u8], Message, Error<&'i [u8]>> for MsgParser {
+    fn parse(&mut self, i: &'i [u8]) -> IResult<&'i [u8], Message, Error<&'i [u8]>> {
+        let (i, header) = nom::bits::bits(Header::deserialize)(i)?;
+
+        // Parse the right number of question sections, and keep a reference back to
+        // the bytes that were parsed for each one.
+        let (i, question) = count(question::Entry::deserialize, header.qdcount.into())(i)?;
+
+        // Add the domains parsed from the question as possible future domains that could be pointed to,
+        // for DNS message compression.
+        // See RFC 1035 part 4.1.4 for more about message compression.
+        let (i, answer) = count(|i| self.parse(i), header.ancount.into())(i)?;
+        let (i, authority) = count(|i| self.parse(i), header.nscount.into())(i)?;
+        let (i, additional) = count(|i| self.parse(i), header.arcount.into())(i)?;
+        Ok((
+            i,
+            Message {
+                header,
+                question,
+                answer,
+                authority,
+                additional,
+            },
+        ))
+    }
+}
+
+impl<'i> nom::Parser<&'i [u8], Record, Error<&'i [u8]>> for MsgParser {
     fn parse(&mut self, input: &'i [u8]) -> IResult<&'i [u8], Record, Error<&'i [u8]>> {
         let (input, name) = self.parse_name(input)?;
         let (input, record_type) = map_res(be_u16, RecordType::try_from)(input)?;
@@ -263,8 +267,7 @@ mod tests {
         ];
 
         // Try to parse it
-        let r = Message::deserialize(&response_msg);
-        let (_, actual_msg) = r.unwrap();
+        let actual_msg = Message::deserialize(response_msg).unwrap();
 
         // Was it correct?
         let name = AsciiString::from_ascii("blog.adamchalmers.com.").unwrap();
