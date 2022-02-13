@@ -1,3 +1,4 @@
+//! Doing network IO and printing to the terminal.
 use crate::message::{header::ResponseCode, Message, MAX_UDP_BYTES};
 use anyhow::{anyhow, Result as AResult};
 use std::{
@@ -5,6 +6,8 @@ use std::{
     time::Duration,
 };
 
+/// Sends the given DNS message to the given resolver.
+/// Returns the binary response.
 pub fn send_req(msg: Message, resolver: SocketAddr, verbose: bool) -> AResult<(Vec<u8>, usize)> {
     // Connect to the DNS resolver
     let local_addr = "0.0.0.0:0";
@@ -42,6 +45,7 @@ pub fn send_req(msg: Message, resolver: SocketAddr, verbose: bool) -> AResult<(V
     }
 }
 
+/// Parse the binary response into a DNS message, and print it nicely.
 pub fn print_resp(resp: Vec<u8>, len: usize, sent_query_id: u16, verbose: bool) -> AResult<()> {
     if verbose {
         println!("Response size: {len} bytes");

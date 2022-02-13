@@ -1,3 +1,4 @@
+//! Common DNS types that get used in several different parts of the codebase.
 use bitvec::prelude::*;
 use std::{fmt, str::FromStr};
 

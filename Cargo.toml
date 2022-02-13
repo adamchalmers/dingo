@@ -2,6 +2,7 @@
 name = "dingo"
 version = "0.1.0"
 edition = "2021"
+authors = ["Adam Chalmers"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -12,7 +13,3 @@ bitvec = "1.0.0"
 nom = "7.1.0"
 pico-args = "0.4.2"
 rand = "0.8.4"
-
-[dev-dependencies]
-# bytes = "1.1.0"
-# dns-message-parser = "0.6.0"

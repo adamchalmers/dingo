@@ -1,9 +1,9 @@
-use crate::message::parse_header::*;
+use crate::message::parser_utils::*;
 use bitvec::prelude::*;
 use nom::IResult;
 
-/// Headers should always be 6 bytes long.
-const EXPECTED_SIZE_BYTES: usize = 2 * 6;
+/// RFC 1035 defines DNS headers as 12 bytes long.
+const EXPECTED_SIZE_BYTES: usize = 12;
 
 /// All DNS messages start with a Header (both queries and responses!)
 /// Structure is defined at <https://datatracker.ietf.org/doc/html/rfc1035#section-4.1.1>
@@ -79,6 +79,24 @@ impl Header {
     pub fn deserialize(i: BitInput) -> IResult<BitInput, Self> {
         use nom::combinator::map_res;
 
+        // From RFC 1035, section 4.1.1
+        // The header contains the following fields:
+        //
+        //                               1  1  1  1  1  1
+        // 0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
+        // +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+        // |                      ID                       |
+        // +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+        // |QR|   Opcode  |AA|TC|RD|RA|   Z    |   RCODE   |
+        // +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+        // |                    QDCOUNT                    |
+        // +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+        // |                    ANCOUNT                    |
+        // +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+        // |                    NSCOUNT                    |
+        // +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+        // |                    ARCOUNT                    |
+        // +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
         let (i, id) = take_le2_bytes(i, 16)?;
         let (i, qr) = take_bit(i)?;
         let (i, opcode) = map_res(take_nibble, Opcode::try_from)(i)?;
@@ -111,13 +129,15 @@ impl Header {
     }
 }
 
+/// A four bit field that specifies kind of query in this message.
+/// This value is set by the originator of a query and copied into the response.
 #[derive(Debug)]
 enum Opcode {
-    // 0: a standard query (QUERY)
+    /// 0: a standard query (QUERY)
     Query,
-    // 1: an inverse query (IQUERY)
+    /// 1: an inverse query (IQUERY)
     IQuery,
-    // 2: a server status request (STATUS)
+    /// 2: a server status request (STATUS)
     Status,
 }
 
@@ -145,6 +165,7 @@ impl Opcode {
     }
 }
 
+/// This field is set by the DNS resolver and indicates if the DNS query was successful or erroneous.
 #[derive(Debug)]
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub enum ResponseCode {
