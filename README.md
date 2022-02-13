@@ -1,6 +1,6 @@
 # Dingo
 
-Domain information gatherer, obviously.
+Domain INformation Gatherer, Obviously.
 
 ## Installation
 
