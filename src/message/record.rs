@@ -1,4 +1,4 @@
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 use crate::{Class, RecordType};
 use ascii::AsciiString;
@@ -16,6 +16,7 @@ impl Record {
     pub fn as_dns_response(&self) -> String {
         let rdata = match &self.data {
             RecordData::A(ipv4) => ipv4.to_string(),
+            RecordData::Aaaa(ipv6) => ipv6.to_string(),
             RecordData::Cname(name) => name.to_string(),
             RecordData::Soa(soa) => format!("{soa:?}"),
         };
@@ -27,6 +28,7 @@ impl Record {
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub enum RecordData {
     A(Ipv4Addr),
+    Aaaa(Ipv6Addr),
     Cname(AsciiString),
     Soa(SoaData),
 }
@@ -36,6 +38,7 @@ impl RecordData {
     fn as_type(&self) -> RecordType {
         match self {
             Self::A(_) => RecordType::A,
+            Self::Aaaa(_) => RecordType::Aaaa,
             Self::Cname(_) => RecordType::Cname,
             Self::Soa(_) => RecordType::Soa,
         }

@@ -21,7 +21,10 @@ use nom::{
     sequence::tuple,
     IResult,
 };
-use std::{io::Read, net::Ipv4Addr};
+use std::{
+    io::Read,
+    net::{Ipv4Addr, Ipv6Addr},
+};
 
 use self::record::{RecordData, SoaData};
 
@@ -133,6 +136,14 @@ impl MsgParser {
                 RecordType::A => map(tuple((be_u8, be_u8, be_u8, be_u8)), |(a, b, c, d)| {
                     RecordData::A(Ipv4Addr::new(a, b, c, d))
                 })(i)?,
+                RecordType::Aaaa => map(
+                    tuple((
+                        be_u16, be_u16, be_u16, be_u16, be_u16, be_u16, be_u16, be_u16,
+                    )),
+                    |(a, b, c, d, e, f, g, h)| {
+                        RecordData::Aaaa(Ipv6Addr::new(a, b, c, d, e, f, g, h))
+                    },
+                )(i)?,
                 RecordType::Cname => map(|i| self.parse_name(i), RecordData::Cname)(i)?,
                 RecordType::Soa => {
                     let (i, mname) = self.parse_name(i)?;
