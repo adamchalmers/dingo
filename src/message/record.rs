@@ -17,6 +17,7 @@ impl Record {
         let rdata = match &self.data {
             RecordData::A(ipv4) => ipv4.to_string(),
             RecordData::Cname(name) => name.to_string(),
+            RecordData::Soa(soa) => format!("{soa:?}"),
         };
         format!("{rdata} (TTL {})", self.ttl)
     }
@@ -27,6 +28,7 @@ impl Record {
 pub enum RecordData {
     A(Ipv4Addr),
     Cname(AsciiString),
+    Soa(SoaData),
 }
 
 impl RecordData {
@@ -35,6 +37,27 @@ impl RecordData {
         match self {
             Self::A(_) => RecordType::A,
             Self::Cname(_) => RecordType::Cname,
+            Self::Soa(_) => RecordType::Soa,
         }
     }
+}
+
+#[derive(Debug)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
+pub struct SoaData {
+    /// name server that was the original or primary source of data for this zone.
+    pub mname: AsciiString,
+    /// mailbox of the person responsible for this zone.
+    pub rname: AsciiString,
+    /// The unsigned 32 bit version number of the original copy
+    /// of the zone.  Zone transfers preserve this value.  This
+    /// value wraps and should be compared using sequence space
+    /// arithmetic.
+    pub serial: u32,
+    /// time interval before the zone should be refreshed.
+    pub refresh: u32,
+    /// time interval that should elapse before a failed refresh should be retried.
+    pub retry: u32,
+    /// upper limit on the time interval that can elapse before the zone is no longer authoritative.
+    pub expire: u32,
 }

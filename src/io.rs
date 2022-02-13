@@ -45,6 +45,7 @@ pub fn send_req(msg: Message, resolver: SocketAddr, verbose: bool) -> AResult<(V
 pub fn print_resp(resp: Vec<u8>, len: usize, sent_query_id: u16, verbose: bool) -> AResult<()> {
     if verbose {
         println!("Response size: {len} bytes");
+        println!("{resp:?}");
     }
 
     // Parse and validate the response.

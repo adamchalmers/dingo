@@ -23,7 +23,7 @@ use nom::{
 };
 use std::{io::Read, net::Ipv4Addr};
 
-use self::record::RecordData;
+use self::record::{RecordData, SoaData};
 
 /// Defined by the spec
 /// UDP messages    512 octets or less
@@ -134,6 +134,23 @@ impl MsgParser {
                     RecordData::A(Ipv4Addr::new(a, b, c, d))
                 })(i)?,
                 RecordType::Cname => map(|i| self.parse_name(i), RecordData::Cname)(i)?,
+                RecordType::Soa => {
+                    let (i, mname) = self.parse_name(i)?;
+                    let (i, rname) = self.parse_name(i)?;
+                    let (i, serial) = be_u32(i)?;
+                    let (i, refresh) = be_u32(i)?;
+                    let (i, retry) = be_u32(i)?;
+                    let (i, expire) = be_u32(i)?;
+                    let rd = SoaData {
+                        mname,
+                        rname,
+                        serial,
+                        refresh,
+                        retry,
+                        expire,
+                    };
+                    (i, RecordData::Soa(rd))
+                }
             };
             Ok(record)
         }
@@ -203,7 +220,6 @@ impl MsgParser {
 
     fn parse_message<'i>(&self, i: &'i [u8]) -> IResult<&'i [u8], Message, Error<&'i [u8]>> {
         let (i, header) = nom::bits::bits(Header::deserialize)(i)?;
-
         // Parse the right number of question sections, and keep a reference back to
         // the bytes that were parsed for each one.
         let (i, question) = count(question::Entry::deserialize, header.qdcount.into())(i)?;
@@ -237,6 +253,21 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn test_msg_with_soa_records() {
+        let response_msg = vec![
+            190, 125, 129, 128, 0, 1, 0, 0, 0, 1, 0, 0, 11, 115, 101, 114, 105, 111, 117, 115, 101,
+            97, 116, 115, 3, 99, 111, 109, 0, 0, 5, 0, 1, 192, 12, 0, 6, 0, 1, 0, 0, 1, 44, 0, 53,
+            4, 100, 110, 115, 49, 3, 112, 48, 51, 5, 110, 115, 111, 110, 101, 3, 110, 101, 116, 0,
+            10, 104, 111, 115, 116, 109, 97, 115, 116, 101, 114, 192, 54, 97, 247, 178, 208, 0, 0,
+            168, 192, 0, 0, 2, 88, 0, 9, 58, 128, 0, 0, 1, 44,
+        ];
+
+        let msg = Message::deserialize(response_msg).unwrap();
+        assert_eq!(msg.header.nscount, 1);
+        assert_eq!(msg.authority.len(), 1);
+    }
 
     #[test]
     fn test_parse_msg() {
