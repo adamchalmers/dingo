@@ -19,7 +19,7 @@ use nom::{
     multi::{count, length_value},
     number::complete::{be_u16, be_u32, be_u8},
     sequence::tuple,
-    IResult, Parser,
+    IResult,
 };
 use std::{io::Read, net::Ipv4Addr};
 
@@ -111,16 +111,13 @@ impl Message {
     }
 
     pub fn deserialize(input: Vec<u8>) -> anyhow::Result<Self> {
-        let mut mp = MsgParser {
-            input: input.clone(),
-        };
-        let slice = &input[..];
-        let msg: Message = mp.parse(slice).unwrap().1;
+        let mp = MsgParser { input };
+        let slice = &mp.input[..];
+        let msg: Message = mp.parse_message(slice).unwrap().1;
         Ok(msg)
     }
 }
 
-#[derive(Clone)]
 struct MsgParser {
     input: Vec<u8>,
 }
@@ -178,37 +175,8 @@ impl MsgParser {
         // TODO: update the domains list with the domains we got from parsing this name.
         Ok((input, name))
     }
-}
 
-impl<'i> nom::Parser<&'i [u8], Message, Error<&'i [u8]>> for MsgParser {
-    fn parse(&mut self, i: &'i [u8]) -> IResult<&'i [u8], Message, Error<&'i [u8]>> {
-        let (i, header) = nom::bits::bits(Header::deserialize)(i)?;
-
-        // Parse the right number of question sections, and keep a reference back to
-        // the bytes that were parsed for each one.
-        let (i, question) = count(question::Entry::deserialize, header.qdcount.into())(i)?;
-
-        // Add the domains parsed from the question as possible future domains that could be pointed to,
-        // for DNS message compression.
-        // See RFC 1035 part 4.1.4 for more about message compression.
-        let (i, answer) = count(|i| self.parse(i), header.ancount.into())(i)?;
-        let (i, authority) = count(|i| self.parse(i), header.nscount.into())(i)?;
-        let (i, additional) = count(|i| self.parse(i), header.arcount.into())(i)?;
-        Ok((
-            i,
-            Message {
-                header,
-                question,
-                answer,
-                authority,
-                additional,
-            },
-        ))
-    }
-}
-
-impl<'i> nom::Parser<&'i [u8], Record, Error<&'i [u8]>> for MsgParser {
-    fn parse(&mut self, input: &'i [u8]) -> IResult<&'i [u8], Record, Error<&'i [u8]>> {
+    fn parse_record<'i>(&self, input: &'i [u8]) -> IResult<&'i [u8], Record, Error<&'i [u8]>> {
         let (input, name) = self.parse_name(input)?;
         let (input, record_type) = map_res(be_u16, RecordType::try_from)(input)?;
         let (input, class) = map_res(be_u16, Class::try_from)(input)?;
@@ -229,6 +197,31 @@ impl<'i> nom::Parser<&'i [u8], Record, Error<&'i [u8]>> for MsgParser {
                 class,
                 ttl,
                 data,
+            },
+        ))
+    }
+
+    fn parse_message<'i>(&self, i: &'i [u8]) -> IResult<&'i [u8], Message, Error<&'i [u8]>> {
+        let (i, header) = nom::bits::bits(Header::deserialize)(i)?;
+
+        // Parse the right number of question sections, and keep a reference back to
+        // the bytes that were parsed for each one.
+        let (i, question) = count(question::Entry::deserialize, header.qdcount.into())(i)?;
+
+        // Add the domains parsed from the question as possible future domains that could be pointed to,
+        // for DNS message compression.
+        // See RFC 1035 part 4.1.4 for more about message compression.
+        let (i, answer) = count(|i| self.parse_record(i), header.ancount.into())(i)?;
+        let (i, authority) = count(|i| self.parse_record(i), header.nscount.into())(i)?;
+        let (i, additional) = count(|i| self.parse_record(i), header.arcount.into())(i)?;
+        Ok((
+            i,
+            Message {
+                header,
+                question,
+                answer,
+                authority,
+                additional,
             },
         ))
     }
