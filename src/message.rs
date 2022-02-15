@@ -26,7 +26,7 @@ use std::{
     net::{Ipv4Addr, Ipv6Addr},
 };
 
-use self::record::{RecordData, SoaData};
+use self::record::{GposData, RecordData, SoaData, X25Data};
 
 /// Defined by the spec
 /// UDP messages    512 octets or less
@@ -162,6 +162,8 @@ impl MsgParser {
                     };
                     (i, RecordData::Soa(rd))
                 }
+                RecordType::X25 => (i, RecordData::X25(X25Data {})),
+                RecordType::Gpos => (i, RecordData::Gpos(GposData {})),
             };
             Ok(record)
         }

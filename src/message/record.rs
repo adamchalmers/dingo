@@ -19,6 +19,8 @@ impl Record {
             RecordData::Aaaa(ipv6) => ipv6.to_string(),
             RecordData::Cname(name) => name.to_string(),
             RecordData::Soa(soa) => format!("{soa:?}"),
+            RecordData::Gpos(rr) => format!("{rr:?}"),
+            RecordData::X25(rr) => format!("{rr:?}"),
         };
         format!("{rdata} (TTL {})", self.ttl)
     }
@@ -31,6 +33,8 @@ pub enum RecordData {
     Aaaa(Ipv6Addr),
     Cname(AsciiString),
     Soa(SoaData),
+    X25(X25Data),
+    Gpos(GposData),
 }
 
 impl RecordData {
@@ -41,6 +45,8 @@ impl RecordData {
             Self::Aaaa(_) => RecordType::Aaaa,
             Self::Cname(_) => RecordType::Cname,
             Self::Soa(_) => RecordType::Soa,
+            Self::X25(_) => RecordType::X25,
+            Self::Gpos(_) => RecordType::Gpos,
         }
     }
 }
@@ -64,3 +70,11 @@ pub struct SoaData {
     /// upper limit on the time interval that can elapse before the zone is no longer authoritative.
     pub expire: u32,
 }
+
+#[derive(Debug)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
+pub struct X25Data;
+
+#[derive(Debug)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
+pub struct GposData;
