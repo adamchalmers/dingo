@@ -104,7 +104,7 @@ impl Header {
         let (i, tc) = take_bit(i)?;
         let (i, rd) = take_bit(i)?;
         let (i, ra) = take_bit(i)?;
-        let (i, z) = take_le1_byte(i, 3)?;
+        let (i, z) = take_le2_bytes(i, 3)?;
         assert_eq!(z, 0);
         let (i, rcode) = map_res(take_nibble, ResponseCode::try_from)(i)?;
         let (i, qdcount) = take_le2_bytes(i, 16)?;
@@ -141,10 +141,10 @@ enum Opcode {
     Status,
 }
 
-impl TryFrom<u8> for Opcode {
+impl TryFrom<u16> for Opcode {
     type Error = anyhow::Error;
 
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
         let op = match value {
             0 => Self::Query,
             1 => Self::IQuery,
@@ -219,10 +219,10 @@ impl std::fmt::Display for ResponseCode {
     }
 }
 
-impl TryFrom<u8> for ResponseCode {
+impl TryFrom<u16> for ResponseCode {
     type Error = anyhow::Error;
 
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
         let op = match value {
             0 => Self::NoError,
             1 => Self::FormatError,

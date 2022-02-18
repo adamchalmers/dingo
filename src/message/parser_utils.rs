@@ -35,15 +35,9 @@ use nom::{bits::complete::take, IResult};
 /// ```
 pub type BitInput<'a> = (&'a [u8], usize);
 
-/// Takes n bits from the BitInput, n <= 8
-/// Returns the remaining BitInput and a number parsed the first n bits.
-pub fn take_le1_byte(i: BitInput, n: u8) -> IResult<BitInput, u8> {
-    take(n)(i)
-}
-
 /// Take 4 bits from the BitInput.
-pub fn take_nibble(i: BitInput) -> IResult<BitInput, u8> {
-    take_le1_byte(i, 4)
+pub fn take_nibble(i: BitInput) -> IResult<BitInput, u16> {
+    take_le2_bytes(i, 4)
 }
 
 /// Takes n bits from the BitInput, n <= 16
