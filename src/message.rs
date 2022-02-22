@@ -232,14 +232,16 @@ impl MsgParser {
     }
 
     fn parse_message<'i>(&self, i: &'i [u8]) -> IResult<&'i [u8], Message, Error<&'i [u8]>> {
+        // The Header parser requires parsing individual bits, because the RFC stores some boolean
+        // flags as single bits, and some numbers as 4-bit numbers.
+        // So, first convert the input from bytestream to bitstream, then run the Header parser,
+        // then convert the bitstream back to a bystream for the following steps.
         let (i, header) = nom::bits::bits(Header::deserialize)(i)?;
-        // Parse the right number of question sections, and keep a reference back to
-        // the bytes that were parsed for each one.
+
+        // Parse the right number of question sections.
         let (i, question) = count(question::Entry::deserialize, header.qdcount.into())(i)?;
 
-        // Add the domains parsed from the question as possible future domains that could be pointed to,
-        // for DNS message compression.
-        // See RFC 1035 part 4.1.4 for more about message compression.
+        // After the question comes the DNS records themselves. Parse the right number of each kind!
         let (i, answer) = count(|i| self.parse_record(i), header.ancount.into())(i)?;
         let (i, authority) = count(|i| self.parse_record(i), header.nscount.into())(i)?;
         let (i, additional) = count(|i| self.parse_record(i), header.arcount.into())(i)?;
