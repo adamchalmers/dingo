@@ -45,13 +45,7 @@ pub fn take_nibble(i: BitInput) -> IResult<BitInput, u8> {
 
 /// Take 16 bits from the BitInput, parse into a uint with most significant bit first..
 pub fn take_u16(i: BitInput) -> IResult<BitInput, u16> {
-    take_bits(i, 16)
-}
-
-/// Takes n bits from the BitInput, n <= 16
-/// Returns the remaining BitInput and a number parsed the first n bits.
-pub fn take_bits(i: BitInput, n: u8) -> IResult<BitInput, u16> {
-    take(n)(i)
+    take(16u8)(i)
 }
 
 /// Takes one bit from the BitInput.

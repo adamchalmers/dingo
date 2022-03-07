@@ -103,9 +103,12 @@ impl Header {
         let (i, aa) = take_bit(i)?;
         let (i, tc) = take_bit(i)?;
         let (i, rd) = take_bit(i)?;
-        let (i, ra) = take_bit(i)?;
-        let (i, z) = take_bits(i, 3)?;
-        assert_eq!(z, 0);
+        let (mut i, ra) = take_bit(i)?;
+        for _ in 0..3 {
+            let z;
+            (i, z) = take_bit(i)?;
+            assert!(!z);
+        }
         let (i, rcode) = map_res(take_nibble, ResponseCode::try_from)(i)?;
         let (i, qdcount) = take_u16(i)?;
         let (i, ancount) = take_u16(i)?;
