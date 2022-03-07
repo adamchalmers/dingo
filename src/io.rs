@@ -62,7 +62,7 @@ pub fn print_resp(resp: Vec<u8>, len: usize, sent_query_id: u16, verbose: bool) 
     if sent_query_id != received_query_id {
         eprintln!("Mismatch between query IDs. Client sent {sent_query_id} and received {received_query_id}")
     }
-    match response_msg.header.rcode {
+    match response_msg.header.resp_code {
         ResponseCode::NoError => {}
         err => anyhow::bail!("Error from resolver: {err}"),
     };

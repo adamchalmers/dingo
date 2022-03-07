@@ -239,12 +239,15 @@ impl MsgParser {
         let (i, header) = nom::bits::bits(Header::deserialize)(i)?;
 
         // Parse the right number of question sections.
-        let (i, question) = count(question::Entry::deserialize, header.qdcount.into())(i)?;
+        let (i, question) = count(question::Entry::deserialize, header.question_count.into())(i)?;
 
         // After the question comes the DNS records themselves. Parse the right number of each kind!
-        let (i, answer) = count(|i| self.parse_record(i), header.ancount.into())(i)?;
-        let (i, authority) = count(|i| self.parse_record(i), header.nscount.into())(i)?;
-        let (i, additional) = count(|i| self.parse_record(i), header.arcount.into())(i)?;
+        let (i, answer) = count(|i| self.parse_record(i), header.answer_count.into())(i)?;
+        let (i, authority) = count(|i| self.parse_record(i), header.name_server_count.into())(i)?;
+        let (i, additional) = count(
+            |i| self.parse_record(i),
+            header.additional_records_count.into(),
+        )(i)?;
         Ok((
             i,
             Message {
@@ -280,7 +283,7 @@ mod tests {
         ];
 
         let msg = Message::deserialize(response_msg).unwrap();
-        assert_eq!(msg.header.nscount, 1);
+        assert_eq!(msg.header.name_server_count, 1);
         assert_eq!(msg.authority.len(), 1);
     }
 

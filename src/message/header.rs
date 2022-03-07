@@ -12,26 +12,26 @@ pub struct Header {
     /// A 16 bit identifier assigned by the program that generates any kind of query.  This identifier is copied the corresponding reply and can be used by the requester to match up replies to outstanding queries.
     pub id: u16,
     /// A one bit field that specifies whether this message is a query (0), or a response (1).
-    qr: bool,
+    is_query: bool,
     /// A four bit field that specifies kind of query in this message.  This value is set by the originator of a query and copied into the response.
     opcode: Opcode,
-    /// Authoritative Answer - this bit is valid in responses, and specifies that the responding name server is an authority for the domain name in question section. Note that the contents of the answer section may have multiple owner names because of aliases. The AA bit corresponds to the name which matches the query name, or the first owner name in the answer section.
-    aa: bool,
-    /// TrunCation - specifies that this message was truncated due to length greater than that permitted on the transmission channel.
-    tc: bool,
-    /// Recursion Desired - this bit may be set in a query and is copied into the response.  If RD is set, it directs the name server to pursue the query recursively. Recursive query support is optional.
-    rd: bool,
-    /// Recursion Available - this be is set or cleared in a response, and denotes whether recursive query support is available in the name server.
-    ra: bool,
-    pub rcode: ResponseCode,
+    /// This bit is valid in responses, and specifies that the responding name server is an authority for the domain name in question section. Note that the contents of the answer section may have multiple owner names because of aliases. The AA bit corresponds to the name which matches the query name, or the first owner name in the answer section.
+    authoritative_answer: bool,
+    /// Specifies that this message was truncated due to length greater than that permitted on the transmission channel.
+    truncation: bool,
+    /// This bit may be set in a query and is copied into the response.  If RD is set, it directs the name server to pursue the query recursively. Recursive query support is optional.
+    recursion_desired: bool,
+    /// This be (sic) is set or cleared in a response, and denotes whether recursive query support is available in the name server.
+    recursion_available: bool,
+    pub resp_code: ResponseCode,
     /// Number of entries in the question section.
-    pub qdcount: u16,
+    pub question_count: u16,
     /// Number of resource records in the answer section.
-    pub ancount: u16,
+    pub answer_count: u16,
     /// Number of name server resource records in the authority records section.
-    pub nscount: u16,
+    pub name_server_count: u16,
     /// Number of resource records in the additional records section.
-    pub arcount: u16,
+    pub additional_records_count: u16,
 }
 
 impl Header {
@@ -39,18 +39,18 @@ impl Header {
     pub fn new_query(id: u16) -> Self {
         Self {
             id,
-            qr: false,
+            is_query: false,
             opcode: Opcode::Query,
-            aa: Default::default(),
-            tc: false,
-            rd: true,
-            ra: Default::default(),
-            rcode: ResponseCode::NoError, // This doesn't matter for a query
+            authoritative_answer: Default::default(),
+            truncation: false,
+            recursion_desired: true,
+            recursion_available: Default::default(),
+            resp_code: ResponseCode::NoError, // This doesn't matter for a query
             // In a query, there will be 1 question and no records.
-            qdcount: 1,
-            ancount: 0,
-            nscount: 0,
-            arcount: 0,
+            question_count: 1,
+            answer_count: 0,
+            name_server_count: 0,
+            additional_records_count: 0,
         }
     }
 
@@ -58,20 +58,20 @@ impl Header {
     pub fn serialize<T: BitStore>(&self, bv: &mut BitVec<T, Msb0>) {
         let initial_length_bits = bv.len();
         bv.extend(self.id.view_bits::<Msb0>());
-        bv.push(self.qr);
+        bv.push(self.is_query);
         self.opcode.serialize(bv);
-        bv.push(self.aa);
-        bv.push(self.tc);
-        bv.push(self.rd);
-        bv.push(self.ra);
+        bv.push(self.authoritative_answer);
+        bv.push(self.truncation);
+        bv.push(self.recursion_desired);
+        bv.push(self.recursion_available);
         // the Z field, reserved for future use.
         // Must be zero in all queries and responses.
         bv.extend_from_bitslice(bits![0; 3]);
-        self.rcode.serialize(bv);
-        bv.extend(self.qdcount.view_bits::<Msb0>());
-        bv.extend(self.ancount.view_bits::<Msb0>());
-        bv.extend(self.nscount.view_bits::<Msb0>());
-        bv.extend(self.arcount.view_bits::<Msb0>());
+        self.resp_code.serialize(bv);
+        bv.extend(self.question_count.view_bits::<Msb0>());
+        bv.extend(self.answer_count.view_bits::<Msb0>());
+        bv.extend(self.name_server_count.view_bits::<Msb0>());
+        bv.extend(self.additional_records_count.view_bits::<Msb0>());
         let bits_written = bv.len() - initial_length_bits;
         assert_eq!(bits_written, 8 * EXPECTED_SIZE_BYTES);
     }
@@ -116,17 +116,17 @@ impl Header {
         let (i, arcount) = take_u16(i)?;
         let header = Header {
             id,
-            qr,
+            is_query: qr,
             opcode,
-            aa,
-            tc,
-            rd,
-            ra,
-            rcode,
-            qdcount,
-            ancount,
-            nscount,
-            arcount,
+            authoritative_answer: aa,
+            truncation: tc,
+            recursion_desired: rd,
+            recursion_available: ra,
+            resp_code: rcode,
+            question_count: qdcount,
+            answer_count: ancount,
+            name_server_count: nscount,
+            additional_records_count: arcount,
         };
         Ok((i, header))
     }
@@ -139,7 +139,7 @@ enum Opcode {
     /// 0: a standard query (QUERY)
     Query,
     /// 1: an inverse query (IQUERY)
-    IQuery,
+    InverseQuery,
     /// 2: a server status request (STATUS)
     Status,
 }
@@ -150,7 +150,7 @@ impl TryFrom<u8> for Opcode {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         let op = match value {
             0 => Self::Query,
-            1 => Self::IQuery,
+            1 => Self::InverseQuery,
             2 => Self::Status,
             other => anyhow::bail!("Unknown opcode {other}"),
         };
@@ -162,7 +162,7 @@ impl Opcode {
     fn serialize<T: BitStore>(&self, bv: &mut BitVec<T, Msb0>) {
         match self {
             Self::Query => bv.extend_from_bitslice(bits![u8, Msb0; 0; 4]),
-            Self::IQuery => bv.extend_from_bitslice(bits![u8, Msb0; 0, 0, 0, 1]),
+            Self::InverseQuery => bv.extend_from_bitslice(bits![u8, Msb0; 0, 0, 0, 1]),
             Self::Status => bv.extend_from_bitslice(bits![u8, Msb0; 0, 0, 1, 0]),
         }
     }
@@ -268,6 +268,6 @@ mod tests {
         }
         let (_i, h): (&[u8], Header) = deser(&i).unwrap();
         assert_eq!(h.id, 33);
-        assert_eq!(h.rcode, ResponseCode::ServerFailure);
+        assert_eq!(h.resp_code, ResponseCode::ServerFailure);
     }
 }
