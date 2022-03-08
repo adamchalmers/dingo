@@ -140,6 +140,7 @@ impl MsgParser {
                     },
                 )(i)?,
                 RecordType::Cname => map(|i| self.parse_name(i), RecordData::Cname)(i)?,
+                RecordType::Ns => map(|i| self.parse_name(i), RecordData::Ns)(i)?,
                 RecordType::Soa => {
                     let (i, mname) = self.parse_name(i)?;
                     let (i, rname) = self.parse_name(i)?;

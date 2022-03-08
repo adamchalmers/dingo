@@ -10,6 +10,7 @@ pub enum RecordType {
     Soa,
     X25,
     Gpos,
+    Ns,
     // TODO: Add more record types
 }
 
@@ -24,6 +25,7 @@ impl FromStr for RecordType {
             "SOA" => Self::Soa,
             "X25" => Self::X25,
             "GPOS" => Self::Gpos,
+            "NS" => Self::Ns,
             other => return Err(format!("{other} is not a valid DNS record type")),
         };
         Ok(rt)
@@ -39,6 +41,7 @@ impl fmt::Display for RecordType {
             Self::Soa => "SOA",
             Self::X25 => "X25",
             Self::Gpos => "GPOS",
+            Self::Ns => "NS",
         };
         s.fmt(f)
     }
@@ -53,6 +56,7 @@ impl RecordType {
             Self::Soa => 6,
             Self::X25 => 19,
             Self::Gpos => 27,
+            Self::Ns => 2,
         };
         bv.extend_from_bitslice(type_num.view_bits::<Msb0>())
     }
@@ -69,6 +73,7 @@ impl TryFrom<u16> for RecordType {
             6 => Self::Soa,
             19 => Self::X25,
             27 => Self::Gpos,
+            2 => Self::Ns,
             other => anyhow::bail!("Invalid record type number {other:b}"),
         };
         Ok(record_type)

@@ -15,7 +15,7 @@ pub struct Entry {
 
 impl fmt::Display for Entry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = format!("{}: {}", self.record_type, &self.labels.concat());
+        let s = format!("{}: {}", self.record_type, &self.labels.join("."));
         s.fmt(f)
     }
 }

@@ -20,6 +20,7 @@ impl Record {
             RecordData::Soa(soa) => format!("{soa:?}"),
             RecordData::Gpos(rr) => format!("{rr:?}"),
             RecordData::X25(rr) => format!("{rr:?}"),
+            RecordData::Ns(name) => name.to_string(),
         };
         format!("{rdata} (TTL {})", self.ttl)
     }
@@ -34,6 +35,7 @@ pub enum RecordData {
     Soa(SoaData),
     X25(X25Data),
     Gpos(GposData),
+    Ns(String),
 }
 
 impl RecordData {
@@ -46,6 +48,7 @@ impl RecordData {
             Self::Soa(_) => RecordType::Soa,
             Self::X25(_) => RecordType::X25,
             Self::Gpos(_) => RecordType::Gpos,
+            Self::Ns(_) => RecordType::Ns,
         }
     }
 }
