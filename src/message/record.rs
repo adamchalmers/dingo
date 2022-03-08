@@ -1,12 +1,11 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 use crate::{Class, RecordType};
-use ascii::AsciiString;
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct Record {
-    pub name: AsciiString,
+    pub name: String,
     pub class: Class,
     pub ttl: u32,
     pub data: RecordData,
@@ -31,7 +30,7 @@ impl Record {
 pub enum RecordData {
     A(Ipv4Addr),
     Aaaa(Ipv6Addr),
-    Cname(AsciiString),
+    Cname(String),
     Soa(SoaData),
     X25(X25Data),
     Gpos(GposData),
@@ -55,9 +54,9 @@ impl RecordData {
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct SoaData {
     /// name server that was the original or primary source of data for this zone.
-    pub mname: AsciiString,
+    pub mname: String,
     /// mailbox of the person responsible for this zone.
-    pub rname: AsciiString,
+    pub rname: String,
     /// The unsigned 32 bit version number of the original copy
     /// of the zone.  Zone transfers preserve this value.  This
     /// value wraps and should be compared using sequence space

@@ -10,7 +10,6 @@ use crate::{
     RecordType,
 };
 use anyhow::Result as AResult;
-use ascii::AsciiString;
 use bitvec::prelude::*;
 use header::Header;
 use nom::{
@@ -77,11 +76,7 @@ impl Message {
                 "Domain name is {name_len} bytes, which is over the max of {MAX_NAME_BYTES}"
             );
         }
-        let dn = AsciiString::from_ascii(domain_name)?;
-        let labels: Vec<_> = dn
-            .split(ascii::AsciiChar::Dot)
-            .map(|a| a.to_owned())
-            .collect();
+        let labels: Vec<_> = domain_name.split('.').map(|a| a.to_owned()).collect();
         if labels.iter().any(|label| label.len() > MAX_LABEL_BYTES) {
             anyhow::bail!(
                 "One of the labels in your domain is over the max of {MAX_LABEL_BYTES} bytes"
@@ -170,8 +165,8 @@ impl MsgParser {
     }
 
     /// Parse a domain name.
-    fn parse_name<'i>(&self, mut input: &'i [u8]) -> IResult<&'i [u8], AsciiString> {
-        let mut name = AsciiString::new();
+    fn parse_name<'i>(&self, mut input: &'i [u8]) -> IResult<&'i [u8], String> {
+        let mut name = String::new();
         loop {
             let (i, first_byte) = peek(be_u8)(input)?;
             input = i;
@@ -199,7 +194,7 @@ impl MsgParser {
                 if label.is_empty() {
                     break;
                 }
-                name.push(ascii::AsciiChar::Dot);
+                name.push('.');
             }
         }
         // TODO: update the domains list with the domains we got from parsing this name.
@@ -312,7 +307,7 @@ mod tests {
         let actual_msg = Message::deserialize(response_msg).unwrap();
 
         // Was it correct?
-        let name = AsciiString::from_ascii("blog.adamchalmers.com.").unwrap();
+        let name = String::from("blog.adamchalmers.com.");
         let expected_answers = vec![
             Record {
                 name: name.clone(),

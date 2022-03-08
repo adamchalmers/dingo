@@ -1,4 +1,9 @@
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::{
+    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    process::exit,
+};
+
+use ascii::AsciiString;
 
 use crate::dns_types::RecordType;
 
@@ -53,6 +58,11 @@ impl AppArgs {
             .unwrap_or(default_resolver);
 
         let mut name: String = pargs.free_from_str()?;
+        use std::str::FromStr;
+        if AsciiString::from_str(&name).is_err() {
+            eprintln!("DNS names must be ASCII, and {name} is not.");
+            exit(1);
+        }
         if !name.ends_with('.') {
             name.push('.');
         }

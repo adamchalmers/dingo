@@ -10,7 +10,6 @@ mod dns_types;
 mod io;
 mod message;
 mod parse;
-mod util;
 
 const VERBOSE: bool = false;
 

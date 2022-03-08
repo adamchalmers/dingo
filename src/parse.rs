@@ -1,8 +1,7 @@
-use ascii::AsciiString;
 use nom::{combinator::map_res, IResult};
 
 /// Matches a sequence of labels, terminated by a zero-length label.
-pub fn parse_labels_then_zero(mut i: &[u8]) -> IResult<&[u8], Vec<AsciiString>> {
+pub fn parse_labels_then_zero(mut i: &[u8]) -> IResult<&[u8], Vec<String>> {
     let mut labels = Vec::new();
     loop {
         let (new_i, label) = parse_label(i)?;
@@ -16,7 +15,7 @@ pub fn parse_labels_then_zero(mut i: &[u8]) -> IResult<&[u8], Vec<AsciiString>> 
 }
 
 /// Read one byte as a u8. Then read that many following bytes and output them, as ASCII.
-pub fn parse_label(i: &[u8]) -> IResult<&[u8], AsciiString> {
+pub fn parse_label(i: &[u8]) -> IResult<&[u8], String> {
     let parse_len = map_res(nom::number::complete::be_u8, |num| {
         if num >= 64 {
             Err(format!(
@@ -27,5 +26,7 @@ pub fn parse_label(i: &[u8]) -> IResult<&[u8], AsciiString> {
         }
     });
     let parse_label = nom::multi::length_data(parse_len);
-    map_res(parse_label, AsciiString::from_ascii)(i)
+    map_res(parse_label, |bytes: &[u8]| {
+        String::from_utf8(bytes.to_vec())
+    })(i)
 }

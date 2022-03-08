@@ -1,6 +1,5 @@
-use crate::{parse::parse_labels_then_zero, util::join_asciis, Class, RecordType};
+use crate::{parse::parse_labels_then_zero, Class, RecordType};
 use anyhow::{anyhow, Result as AResult};
-use ascii::AsciiString;
 use bitvec::prelude::*;
 use nom::{combinator::map_res, number::complete::be_u16, IResult};
 use std::fmt;
@@ -9,20 +8,20 @@ const LABEL_TOO_LONG: &str = "is too long (must be <64 chars)";
 
 #[derive(Debug)]
 pub struct Entry {
-    labels: Vec<AsciiString>,
+    labels: Vec<String>,
     record_type: RecordType,
     record_qclass: Class,
 }
 
 impl fmt::Display for Entry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = format!("{}: {}", self.record_type, join_asciis(&self.labels));
+        let s = format!("{}: {}", self.record_type, &self.labels.concat());
         s.fmt(f)
     }
 }
 
 impl Entry {
-    pub(crate) fn new(labels: Vec<AsciiString>, record_type: RecordType) -> Self {
+    pub(crate) fn new(labels: Vec<String>, record_type: RecordType) -> Self {
         Self {
             labels,
             record_type,
@@ -53,8 +52,8 @@ impl Entry {
             bv.extend_from_bitslice(len.view_bits::<Msb0>());
             label
                 .chars()
-                .map(|ch| ch.as_byte())
-                .for_each(|byte| bv.extend_from_bitslice(byte.view_bits::<Msb0>()));
+                .map(|ch| ch.try_into().unwrap())
+                .for_each(|byte: u8| bv.extend_from_bitslice(byte.view_bits::<Msb0>()));
         }
         Ok(())
     }
@@ -84,9 +83,9 @@ mod tests {
     fn test_serialize_entry() {
         let entry = Entry {
             labels: vec![
-                AsciiString::from_ascii("adamchalmers").unwrap(),
-                AsciiString::from_ascii("com").unwrap(),
-                AsciiString::from_ascii("").unwrap(),
+                String::from("adamchalmers"),
+                String::from("com"),
+                String::from(""),
             ],
             record_type: RecordType::A,
             record_qclass: Class::IN,
