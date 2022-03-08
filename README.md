@@ -4,7 +4,8 @@ Domain INformation Gatherer, Obviously.
 
 ## Installation
 
-Run `cargo build --release` and copy the binary from `target/release/dingo` to somewhere.
+1. Install cargo, see [instructions on the Rust website](https://doc.rust-lang.org/cargo/getting-started/installation.html)
+2. Run ./install.sh (it just does cargo build and copies the program to `/usr/local/bin/dingo`)
 
 ## Examples
 ```sh

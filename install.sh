@@ -1,0 +1,1 @@
+cargo build -q --release && cp target/release/dingo /usr/local/bin/dingo
