@@ -67,15 +67,8 @@ pub fn print_resp(resp: Vec<u8>, len: usize, sent_query_id: u16, verbose: bool) 
         err => anyhow::bail!("Error from resolver: {err}"),
     };
 
-    // Reprint the question, why not?
-    println!("Questions:");
-    for question in response_msg.question.iter() {
-        println!("{question}");
-    }
-
     // Print records sent by the resolver.
     if !response_msg.answer.is_empty() {
-        println!("Answers:");
         for record in response_msg.answer {
             println!("{}", record.as_dns_response());
         }
