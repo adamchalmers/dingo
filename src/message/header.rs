@@ -57,7 +57,7 @@ impl Header {
     /// Serialize the Header and write it into the stream of bits.
     pub fn serialize<T: BitStore>(&self, bv: &mut BitVec<T, Msb0>) {
         let initial_length_bits = bv.len();
-        bv.extend(self.id.view_bits::<Msb0>());
+        bv.extend_from_bitslice(self.id.view_bits::<Msb0>());
         bv.push(self.is_query);
         self.opcode.serialize(bv);
         bv.push(self.authoritative_answer);
@@ -68,10 +68,10 @@ impl Header {
         // Must be zero in all queries and responses.
         bv.extend_from_bitslice(bits![0; 3]);
         self.resp_code.serialize(bv);
-        bv.extend(self.question_count.view_bits::<Msb0>());
-        bv.extend(self.answer_count.view_bits::<Msb0>());
-        bv.extend(self.name_server_count.view_bits::<Msb0>());
-        bv.extend(self.additional_records_count.view_bits::<Msb0>());
+        bv.extend_from_bitslice(self.question_count.view_bits::<Msb0>());
+        bv.extend_from_bitslice(self.answer_count.view_bits::<Msb0>());
+        bv.extend_from_bitslice(self.name_server_count.view_bits::<Msb0>());
+        bv.extend_from_bitslice(self.additional_records_count.view_bits::<Msb0>());
         let bits_written = bv.len() - initial_length_bits;
         assert_eq!(bits_written, 8 * EXPECTED_SIZE_BYTES);
     }
