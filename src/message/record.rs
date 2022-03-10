@@ -22,7 +22,7 @@ impl Record {
             RecordData::X25(rr) => format!("{rr:?}"),
             RecordData::Ns(name) => name.to_string(),
         };
-        format!("{rdata} (TTL {})", self.ttl)
+        format!("{}: {rdata} (TTL {})", self.data.as_type(), self.ttl)
     }
 }
 
