@@ -35,7 +35,6 @@ pub enum RecordData {
 }
 
 impl RecordData {
-    #[allow(dead_code)]
     fn as_type(&self) -> RecordType {
         match self {
             Self::A(_) => RecordType::A,

@@ -171,6 +171,7 @@ impl MsgParser {
             input = i;
             const POINTER_HEADER: u8 = 0b11000000;
             if first_byte >= POINTER_HEADER {
+                // The message is using Message Compression: <https://datatracker.ietf.org/doc/html/rfc1035#section-4.1.4>
                 // This label is a pointer, and it ends the sequence of labels.
                 // The remaining 14 bits are the offset that the pointer points at.
                 // So, first, examine the 14 bits to find the offset of the next label.
@@ -196,7 +197,6 @@ impl MsgParser {
                 name.push('.');
             }
         }
-        // TODO: update the domains list with the domains we got from parsing this name.
         Ok((input, name))
     }
 
