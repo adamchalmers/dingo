@@ -28,7 +28,7 @@ dingo [OPTIONS] --record-type TYPE NAME
 FLAGS:
   -h, --help                Prints help information
 OPTIONS:
-  -t, --record-type TYPE    Choose the DNS record type (currently only supports A, CNAME)
+  -t, --record-type TYPE    Choose the DNS record type (does not support anywhere near all the record types)
   -r, --resolver IP         Which DNS resolver to query (default is 1.1.1.1:53)
 ARGS:
   NAME A domain name to look up. Remember, these must be ASCII.
