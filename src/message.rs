@@ -39,6 +39,8 @@ const MAX_LABEL_BYTES: usize = 63;
 /// names           255 octets or less
 const MAX_NAME_BYTES: usize = 255;
 
+const MAX_RECURSION_DEPTH: u8 = 20;
+
 #[derive(Debug)]
 pub struct Message {
     /// The header section is always present.  The header includes fields that
@@ -127,6 +129,7 @@ impl MsgParser {
         record_type: RecordType,
     ) -> impl FnMut(&'i [u8]) -> IResult<&'i [u8], RecordData> + '_ {
         move |i| {
+            let recursion_depth = 0;
             let record = match record_type {
                 RecordType::A => map(tuple((be_u8, be_u8, be_u8, be_u8)), |(a, b, c, d)| {
                     RecordData::A(Ipv4Addr::new(a, b, c, d))
@@ -139,11 +142,13 @@ impl MsgParser {
                         RecordData::Aaaa(Ipv6Addr::new(a, b, c, d, e, f, g, h))
                     },
                 )(i)?,
-                RecordType::Cname => map(|i| self.parse_name(i), RecordData::Cname)(i)?,
-                RecordType::Ns => map(|i| self.parse_name(i), RecordData::Ns)(i)?,
+                RecordType::Cname => {
+                    map(|i| self.parse_name(i, recursion_depth), RecordData::Cname)(i)?
+                }
+                RecordType::Ns => map(|i| self.parse_name(i, recursion_depth), RecordData::Ns)(i)?,
                 RecordType::Soa => {
-                    let (i, mname) = self.parse_name(i)?;
-                    let (i, rname) = self.parse_name(i)?;
+                    let (i, mname) = self.parse_name(i, recursion_depth)?;
+                    let (i, rname) = self.parse_name(i, recursion_depth)?;
                     let (i, serial) = be_u32(i)?;
                     let (i, refresh) = be_u32(i)?;
                     let (i, retry) = be_u32(i)?;
@@ -164,7 +169,11 @@ impl MsgParser {
     }
 
     /// Parse a domain name.
-    fn parse_name<'i>(&self, mut input: &'i [u8]) -> IResult<&'i [u8], String> {
+    fn parse_name<'i>(
+        &self,
+        mut input: &'i [u8],
+        recursion_depth: u8,
+    ) -> IResult<&'i [u8], String> {
         let mut name = String::new();
         loop {
             let (i, first_byte) = peek(be_u8)(input)?;
@@ -178,8 +187,14 @@ impl MsgParser {
                 let dereference_pointer = |ptr| (ptr - ((POINTER_HEADER as u16) << 8)) as usize;
                 let (i, next_label_offset) = map(be_u16, dereference_pointer)(input)?;
 
+                if recursion_depth >= MAX_RECURSION_DEPTH {
+                    panic!("too many DNS message compression indirections!")
+                }
+
                 // Now, just parse a name from that offset.
-                let (_, pointed_label) = self.parse_name(&self.input[next_label_offset..]).unwrap();
+                let (_, pointed_label) = self
+                    .parse_name(&self.input[next_label_offset..], recursion_depth + 1)
+                    .unwrap();
                 name += &pointed_label;
                 input = i;
                 break;
@@ -201,7 +216,7 @@ impl MsgParser {
     }
 
     fn parse_record<'i>(&self, input: &'i [u8]) -> IResult<&'i [u8], Record, Error<&'i [u8]>> {
-        let (input, name) = self.parse_name(input)?;
+        let (input, name) = self.parse_name(input, 0)?;
         let (input, record_type) = map_res(be_u16, RecordType::try_from)(input)?;
         let (input, class) = map_res(be_u16, Class::try_from)(input)?;
         // RFC defines the max TTL as "positive values of a signed 32 bit number."
